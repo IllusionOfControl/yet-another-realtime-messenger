@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db_dev:
+    image: postgres:18-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: database
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+
+  redis: # Assuming you have a redis service
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "8011:8000"
+    environment:
+      DATABASE_URL: ${USER_SERVICE_DATABASE_URL}
+      FILE_UPLOAD_SERVICE_URL: ${USER_SERVICE_FILE_UPLOAD_SERVICE_URL}
+    depends_on:
+      - db_dev
+    volumes:
+      - ./user-service/app:/app/app
+
+  # Placeholder for File Upload Service (you'd put its definition here)
+  #file-upload-service:
+  #  image: your-file-upload-service-image:latest # Replace with actual image/build
+  #  ports:
+  #    - "8001:8001"
+  #  environment:
+      # ... relevant environment variables for File Upload Service
+  #  depends_on:
+  #    - db_file # If File Upload Service uses its own DB
+      # - s3-compatible-storage # e.g. MinIO if running locally
+
+volumes:
+  postgres_data_dev:

@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  db: # Assuming you have a postgres service named 'db'
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: dbname_auth # Separate DB for Auth Service
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_auth:/var/lib/postgresql/data # Volume for auth db
+
+  db_user: # New DB for User Service
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: dbname_user
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432" # Use a different port for host mapping
+    volumes:
+      - postgres_data_user:/var/lib/postgresql/data
+
+  redis: # Assuming you have a redis service
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  auth-service: # Existing Auth Service
+    build: ./auth-service # Path to auth-service Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://user:password@db:5432/dbname_auth"
+      SECRET_KEY: "your-super-secret-key-that-you-should-change-in-production"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./auth-service/app:/app/app
+
+  # New User Service
+  user-service:
+    build: ./user-service
+    ports:
+      - "8002:8002"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://user:password@db_user:5432/dbname_user"
+      FILE_UPLOAD_SERVICE_URL: "http://file-upload-service:8001" # Assuming this service exists
+    depends_on:
+      - db_user
+      - file-upload-service # New dependency
+    volumes:
+      - ./user-service/app:/app/app
+
+  # Placeholder for File Upload Service (you'd put its definition here)
+  file-upload-service:
+    image: your-file-upload-service-image:latest # Replace with actual image/build
+    ports:
+      - "8001:8001"
+    environment:
+      # ... relevant environment variables for File Upload Service
+    depends_on:
+      - db_file # If File Upload Service uses its own DB
+      # - s3-compatible-storage # e.g. MinIO if running locally
+
+volumes:
+  postgres_data_auth:
+  postgres_data_user:
