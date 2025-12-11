@@ -1,13 +1,14 @@
 import uuid
+from functools import lru_cache
 from typing import Optional
 
 import httpx
 
-from app.config import settings
+from app.settings import get_settings
 
 
 class FileUploadClient:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, token: str):
         self.base_url = base_url
         self.client = httpx.AsyncClient(base_url=self.base_url)
 
@@ -60,4 +61,7 @@ class FileUploadClient:
             return None
 
 
-file_upload_client = FileUploadClient(settings.file_upload_service_url)
+@lru_cache
+def get_file_upload_client():
+    settings = get_settings()
+    return FileUploadClient(settings.file_upload_service_url)

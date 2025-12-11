@@ -1,15 +1,7 @@
 import uuid
-from typing import List, Annotated
+from typing import Annotated
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    HTTPException,
-    Query,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import (
@@ -29,15 +21,20 @@ from app.dependencies import get_current_user_id
 from app.models import ContactStatus
 from app.schemas import (
     ContactResponse,
-    UserProfileCreate,
-    UserProfileResponse,
-    UserProfileUpdate,
-    UserSearchResult,
     SearchParams,
+    UserProfileCreateRequest,
+    UserProfileResponse,
+    UserProfileUpdateRequest,
+    UserSearchResult,
 )
-from app.services.file_upload_client import file_upload_client
+from app.services.file_upload_client import FileUploadClient, get_file_upload_client
 
 router = APIRouter(prefix="/api/v1")
+
+
+@router.post("/ping")
+async def ping():
+    return "pong"
 
 
 @router.post(
@@ -46,16 +43,9 @@ router = APIRouter(prefix="/api/v1")
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user_profile_internal(
-    user_profile_create: UserProfileCreate, 
-    db: Annotated[AsyncSession, Depends(get_db)]
+    user_profile_create: UserProfileCreateRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """
-    Internal endpoint for Auth Service to create a user profile after registration.
-    This should be protected, e.g., by internal network policies or a shared secret.
-    """
-    # TODO: Remove
-    # if await get_user_profile_by_id(db, user_profile_create.id):
-    #     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User profile already exists")
     if await get_user_profile_by_username(db, user_profile_create.username):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Username already exists"
@@ -66,16 +56,53 @@ async def create_user_profile_internal(
             detail="User with email already exists",
         )
 
-    db_user_profile = await create_user_profile(db, user_profile_create)
-    return db_user_profile
+    user_profile = await create_user_profile(db, user_profile_create)
+    return UserProfileResponse(
+        id=user_profile.id,
+        username=user_profile.username,
+        display_name=user_profile.display_name,
+        email=user_profile.email,
+        bio=user_profile.bio,
+        custom_status=user_profile.custom_status,
+        created_at=user_profile.created_at,
+        updated_at=user_profile.updated_at,
+    )
+
+
+@router.get("/users/search", response_model=list[UserSearchResult])
+async def search_users(
+    search_query: Annotated[SearchParams, Query()],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
+):
+    user_profiles = await search_user_profiles(
+        db, search_query.query, search_query.limit, search_query.offset
+    )
+
+    results = []
+    for profile in user_profiles:
+        avatar_url = None
+        if profile.avatar_file_id:
+            avatar_url = await file_upload_client.get_signed_url(
+                profile.avatar_file_id, thumbnail=True
+            )
+        results.append(
+            UserSearchResult(
+                id=profile.id,
+                username=profile.username,
+                display_name=profile.display_name,
+                avatar_url=avatar_url,
+            )
+        )
+    return results
 
 
 @router.get(path="/users/me", response_model=UserProfileResponse)
 async def read_users_me(
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    """Get the current user's profile."""
     user_profile = await get_user_profile_by_id(db, current_user_id)
     if not user_profile:
         raise HTTPException(
@@ -89,17 +116,25 @@ async def read_users_me(
         )
 
     return UserProfileResponse(
-        **user_profile.model_dump(exclude={"avatar_file_id"}), avatar_url=avatar_url
+        id=user_profile.id,
+        username=user_profile.username,
+        display_name=user_profile.display_name,
+        email=user_profile.email,
+        bio=user_profile.bio,
+        custom_status=user_profile.custom_status,
+        avatar_url=avatar_url,
+        created_at=user_profile.created_at,
+        updated_at=user_profile.updated_at,
     )
 
 
 @router.put(path="/users/me", response_model=UserProfileResponse)
 async def update_users_me(
-    user_profile_update: UserProfileUpdate,
+    user_profile_update: UserProfileUpdateRequest,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    """Update the current user's profile."""
     updated_profile = await update_user_profile(
         db, current_user_id, user_profile_update
     )
@@ -115,7 +150,15 @@ async def update_users_me(
         )
 
     return UserProfileResponse(
-        **updated_profile.model_dump(exclude={"avatar_file_id"}), avatar_url=avatar_url
+        id=updated_profile.id,
+        username=updated_profile.username,
+        display_name=updated_profile.display_name,
+        email=updated_profile.email,
+        bio=updated_profile.bio,
+        custom_status=updated_profile.custom_status,
+        avatar_url=avatar_url,
+        created_at=updated_profile.created_at,
+        updated_at=updated_profile.updated_at,
     )
 
 
@@ -124,16 +167,9 @@ async def upload_user_avatar(
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file: Annotated[UploadFile, File(...)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    """Upload a new avatar for the current user."""
-    # Assuming the API Gateway passes the Authorization header to File Upload Service
-    # Or implement internal token for File Upload Service
-    # For simplicity, we'll need a token to interact with File Upload Service.
-    # This token should come from the client request (propagated by API Gateway)
-    # or be a service-to-service token.
-    # For now, let's assume `get_current_user_id` also provides the token needed for File Upload Client.
-    # (In a real scenario, API Gateway would add X-User-Id AND also forward Authorization header or use an internal one)
-    auth_header = "Bearer some_internal_or_forwarded_token"  # Placeholder! Needs actual token logic
+    auth_header = "Bearer some_internal_or_forwarded_token"
 
     file_content = await file.read()
     uploaded_file_info = await file_upload_client.upload_file(
@@ -158,13 +194,24 @@ async def upload_user_avatar(
         updated_profile.avatar_file_id, thumbnail=True
     )
     return UserProfileResponse(
-        **updated_profile.model_dump(exclude={"avatar_file_id"}), avatar_url=avatar_url
+        id=updated_profile.id,
+        username=updated_profile.username,
+        display_name=updated_profile.display_name,
+        email=updated_profile.email,
+        bio=updated_profile.bio,
+        custom_status=updated_profile.custom_status,
+        avatar_url=avatar_url,
+        created_at=updated_profile.created_at,
+        updated_at=updated_profile.updated_at,
     )
 
 
 @router.get("/users/{user_id}", response_model=UserProfileResponse)
-async def read_user_profile(user_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
-    """Get any user's profile by ID."""
+async def read_user_profile(
+    user_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
+):
     user_profile = await get_user_profile_by_id(db, user_id)
     if not user_profile:
         raise HTTPException(
@@ -178,33 +225,16 @@ async def read_user_profile(user_id: uuid.UUID, db: Annotated[AsyncSession, Depe
         )
 
     return UserProfileResponse(
-        **user_profile.model_dump(exclude={"avatar_file_id"}), avatar_url=avatar_url
+        id=user_profile.id,
+        username=user_profile.username,
+        display_name=user_profile.display_name,
+        email=user_profile.email,
+        bio=user_profile.bio,
+        custom_status=user_profile.custom_status,
+        avatar_url=avatar_url,
+        created_at=user_profile.created_at,
+        updated_at=user_profile.updated_at,
     )
-
-
-@router.get("/users/search", response_model=list[UserSearchResult])
-async def search_users(
-    search_query: Annotated[SearchParams, Query()],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Search for users by username, display name, or email."""
-    user_profiles = await search_user_profiles(db, search_query.query, search_query.limit, search_query.offset)
-    results = []
-    for profile in user_profiles:
-        avatar_url = None
-        if profile.avatar_file_id:
-            avatar_url = await file_upload_client.get_signed_url(
-                profile.avatar_file_id, thumbnail=True
-            )
-        results.append(
-            UserSearchResult(
-                id=profile.id,
-                username=profile.username,
-                display_name=profile.display_name,
-                avatar_url=avatar_url,
-            )
-        )
-    return results
 
 
 @router.post(
@@ -214,8 +244,8 @@ async def add_friend(
     contact_user_id: uuid.UUID,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    """Add another user to contacts (friend)."""
     if current_user_id == contact_user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -255,8 +285,8 @@ async def block_user(
     contact_user_id: uuid.UUID,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    """Block another user."""
     if current_user_id == contact_user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot block yourself"
@@ -295,22 +325,22 @@ async def remove_contact(
     contact_user_id: uuid.UUID,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    """Remove a user from contacts or unblock."""
     success = await remove_contact_entry(db, current_user_id, contact_user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
         )
-    return  # FastAPI handles 204 no content
+    return
 
 
-@router.get("/users/me/contacts", response_model=List[ContactResponse])
+@router.get("/users/me/contacts", response_model=list[ContactResponse])
 async def get_my_contacts(
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    """Get the list of current user's friends and blocked users."""
     user_contacts = await get_user_contacts(db, current_user_id)
     results = []
     for contact_entry in user_contacts:
