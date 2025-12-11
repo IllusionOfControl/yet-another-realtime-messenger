@@ -1,4 +1,3 @@
-import json
 import uuid
 
 import httpx
@@ -6,7 +5,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import create_user_profile
-from app.schemas import UserProfileCreate, UserProfileUpdate
+from app.schemas import UserProfileCreateRequest, UserProfileUpdateRequest
 
 TEST_USERNAME = "current_test_user"
 
@@ -33,7 +32,7 @@ async def test_read_users_me(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username=TEST_USERNAME)
+        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
     )
 
     response = await client.get(
@@ -49,10 +48,12 @@ async def test_update_users_me(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username=TEST_USERNAME)
+        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
     )
 
-    update_data = UserProfileUpdate(display_name="Updated Display", bio="My new bio")
+    update_data = UserProfileUpdateRequest(
+        display_name="Updated Display", bio="My new bio"
+    )
     response = await client.put(
         "/api/v1/users/me",
         headers={"X-User-Id": str(user_profile.id)},
@@ -68,7 +69,7 @@ async def test_upload_user_avatar(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username=TEST_USERNAME)
+        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
     )
 
     mock_file_upload_client.upload_file.return_value = {
@@ -88,7 +89,7 @@ async def test_upload_user_avatar(
         files={"file": ("avatar.png", file_content, "image/png")},
     )
     assert response.status_code == 200
-    assert response.json()["avatar_url"] == "http://mock.signed.url/avatar.jpg"
+    assert response.json()["avatar_url"] == "http://mock_file_upload_service/avatar.jpg"
     mock_file_upload_client.upload_file.assert_called_once()
     mock_file_upload_client.get_signed_url.assert_called_once()
 
@@ -99,7 +100,7 @@ async def test_read_user_profile(
     db_session: AsyncSession,
 ):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username="otheruser")
+        db_session, UserProfileCreateRequest(username="otheruser")
     )
 
     response = await client.get(f"/api/v1/users/{user_profile.id}")
@@ -111,14 +112,15 @@ async def test_read_user_profile(
 async def test_search_users(client: httpx.AsyncClient, db_session: AsyncSession):
     user1_profile = await create_user_profile(
         db_session,
-        UserProfileCreate(username="searchuser1", display_name="User One"),
+        UserProfileCreateRequest(username="searchuser1", display_name="User One"),
     )
     user2_profile = await create_user_profile(
         db_session,
-        UserProfileCreate(username="searchuser2", display_name="User Two"),
+        UserProfileCreateRequest(username="searchuser2", display_name="User Two"),
     )
 
     response = await client.get("/api/v1/users/search?query=user1")
+    print(response.json())
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["username"] == "searchuser1"

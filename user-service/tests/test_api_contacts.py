@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import create_user_profile
-from app.schemas import UserProfileCreate
+from app.schemas import UserProfileCreateRequest
 
 TEST_USERNAME = "current_contact_owner"
 
@@ -16,10 +16,10 @@ async def test_add_friend(
     client: TestClient, db_session: AsyncSession, mock_file_upload_client
 ):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username=TEST_USERNAME)
+        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
     )
     friend_profile = await create_user_profile(
-        db_session, UserProfileCreate(username="testfriend")
+        db_session, UserProfileCreateRequest(username="testfriend")
     )
 
     response = await client.post(
@@ -36,10 +36,10 @@ async def test_block_user(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username=TEST_USERNAME)
+        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
     )
     blocked_profile = await create_user_profile(
-        db_session, UserProfileCreate(username="testblocked")
+        db_session, UserProfileCreateRequest(username="testblocked")
     )
 
     response = await client.post(
@@ -54,10 +54,10 @@ async def test_block_user(
 @pytest.mark.asyncio
 async def test_remove_contact(client: httpx.AsyncClient, db_session: AsyncSession):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username=TEST_USERNAME)
+        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
     )
     contact_profile = await create_user_profile(
-        db_session, UserProfileCreate(username="temp_contact")
+        db_session, UserProfileCreateRequest(username="temp_contact")
     )
 
     await client.post(
@@ -83,13 +83,13 @@ async def test_get_my_contacts(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
     user_profile = await create_user_profile(
-        db_session, UserProfileCreate(username=TEST_USERNAME)
+        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
     )
     friend_profile = await create_user_profile(
-        db_session, UserProfileCreate(username="friend1")
+        db_session, UserProfileCreateRequest(username="friend1")
     )
     blocked_profile = await create_user_profile(
-        db_session, UserProfileCreate(username="blocked1")
+        db_session, UserProfileCreateRequest(username="blocked1")
     )
 
     await client.post(
