@@ -11,3 +11,6 @@ test:
 
 test_one:
 	PYTHONPATH=. ENV=test pytest -k $(TARGET)
+
+run:
+	ENV=dev uvicorn app.main:app --log-level critical

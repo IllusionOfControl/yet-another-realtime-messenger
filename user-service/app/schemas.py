@@ -15,13 +15,13 @@ class UserProfileBase(BaseModel):
     custom_status: Optional[str] = None
 
 
-class UserProfileCreate(BaseModel):
+class UserProfileCreateRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     display_name: Optional[str] = None
     email: Optional[EmailStr] = None
 
 
-class UserProfileUpdate(BaseModel):
+class UserProfileUpdateRequest(BaseModel):
     display_name: Optional[str] = None
     email: Optional[EmailStr] = None
     bio: Optional[str] = None

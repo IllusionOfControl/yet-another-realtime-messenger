@@ -1,12 +1,12 @@
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ContactStatus, UserContact, UserProfile
-from app.schemas import UserProfileCreate, UserProfileUpdate
+from app.schemas import UserProfileCreateRequest, UserProfileUpdateRequest
 
 
 async def get_user_profile_by_id(
@@ -36,7 +36,7 @@ async def get_user_profile_by_email(
 
 
 async def create_user_profile(
-    db: AsyncSession, user_profile: UserProfileCreate
+    db: AsyncSession, user_profile: UserProfileCreateRequest
 ) -> UserProfile:
     db_user_profile = UserProfile(
         username=user_profile.username,
@@ -50,7 +50,7 @@ async def create_user_profile(
 
 
 async def update_user_profile(
-    db: AsyncSession, user_id: uuid.UUID, user_profile_update: UserProfileUpdate
+    db: AsyncSession, user_id: uuid.UUID, user_profile_update: UserProfileUpdateRequest
 ) -> Optional[UserProfile]:
     db_user_profile = await get_user_profile_by_id(db, user_id)
     if db_user_profile:
@@ -75,7 +75,7 @@ async def update_user_avatar(
 
 async def search_user_profiles(
     db: AsyncSession, query: str, limit: int = 10, offset: int = 0
-) -> List[UserProfile]:
+) -> list[UserProfile]:
     search_pattern = f"%{query}%"
     stmt = (
         select(UserProfile)
@@ -143,7 +143,7 @@ async def remove_contact_entry(
     return False
 
 
-async def get_user_contacts(db: AsyncSession, owner_id: uuid.UUID) -> List[UserContact]:
+async def get_user_contacts(db: AsyncSession, owner_id: uuid.UUID) -> list[UserContact]:
     stmt = select(UserContact).where(UserContact.owner_id == owner_id)
     result = await db.execute(stmt)
     return list(result.scalars().all())
