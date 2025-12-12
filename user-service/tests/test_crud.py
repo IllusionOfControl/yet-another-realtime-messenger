@@ -38,6 +38,7 @@ async def test_get_user_profile_by_id(db_session: AsyncSession):
     assert retrieved_user is not None
     assert retrieved_user.username == "gettest"
 
+
 @pytest.mark.asyncio
 async def test_get_user_profile_by_username(db_session: AsyncSession):
     user_data = UserProfileCreateRequest(username="gettest", display_name="Get Test")
