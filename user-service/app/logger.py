@@ -41,6 +41,17 @@ class JsonFormatter(logging.Formatter):
                 log_record[key] = value
 
         return json.dumps(log_record)
+    
+
+class StringFormatter(logging.Formatter):
+    """
+    Custom Default Formatter.
+    """
+    def format(self, record: logging.LogRecord) -> str:
+        request_uid = getattr(record, "request_uid", "")
+        setattr(record, "request_uid", request_uid.ljust(36))
+        return super().format(record)
+
 
 
 class TraceContextFilter(logging.Filter):
@@ -62,8 +73,8 @@ def configure_logging(log_level: str, log_format: str):
 
     match log_format.lower():
         case "text":
-            formatter = logging.Formatter(
-                "[%(levelname)s] [%(asctime)s] [%(request_uid):10s] [%(name)s] - %(message)s"
+            formatter = StringFormatter(
+                "[%(levelname)s] [%(asctime)s] [%(request_uid)s] [%(name)s] - %(message)s"
             )
         case "json":
             formatter = JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S%z")

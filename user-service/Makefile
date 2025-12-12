@@ -1,4 +1,5 @@
 TARGET ?= ""
+VIRTUAL_ENVIRONMENT = auth-service
 
 format:
 	isort ./app ./tests; black ./app	./tests
@@ -13,4 +14,4 @@ test_one:
 	PYTHONPATH=. ENV=test pytest -k $(TARGET)
 
 run:
-	ENV=dev uvicorn app.main:app --log-level critical
+	ENV=dev uvicorn app.main:app --log-level error
