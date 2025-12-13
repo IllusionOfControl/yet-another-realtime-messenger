@@ -1,18 +1,31 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim-buster
+## --- Builder Stage --- 
+FROM python:3.12-slim-bookworm as builder
 
-# Set the working directory in the container
+RUN pip install poetry
+
 WORKDIR /app
 
-# Install any needed packages specified in requirements.txt
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
 
-# Copy the current directory contents into the container at /app
-COPY . .
+COPY pyproject.toml poetry.lock ./
 
-# Expose port 8002 for FastAPI
-EXPOSE 8002
+RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --without dev,test --no-root
 
-# Run the uvicorn server with FastAPI
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
+## --- Runtime Stage --- 
+FROM python:3.12-slim-bookworm as runtime
+
+ENV VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
+
+COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+
+WORKDIR /app
+
+COPY app ./app
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
