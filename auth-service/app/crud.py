@@ -39,6 +39,21 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     return user
 
 
+async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
+    if not username:
+        logger.debug("Attempted to retrieve user by empty username. Skipping.")
+        return None
+    logger.debug(f"Attempting to retrieve user by email: {username}")
+    stmt = select(User).where(User.username == username)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if user:
+        logger.debug(f"User found by username: {username} (ID: {user.id})")
+    else:
+        logger.debug(f"User not found by username: {username}")
+    return user
+
+
 async def get_user_by_username_or_email(
     db: AsyncSession, identifier: str
 ) -> Optional[User]:
@@ -67,6 +82,7 @@ async def create_user(
     logger.info(f"Attempting to create new user: {user_data.username}")
     db_user = User(
         id=user_id,
+        username=user_data.username,
         email=user_data.email,
         password_hash=password_hash,
     )

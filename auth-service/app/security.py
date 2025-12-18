@@ -5,7 +5,6 @@ from typing import Any, Optional
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from redis.asyncio import Redis
 
 ph = PasswordHasher()
 
