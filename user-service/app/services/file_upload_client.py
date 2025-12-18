@@ -8,9 +8,8 @@ from app.settings import get_settings
 
 
 class FileUploadClient:
-    def __init__(self, base_url: str, token: str):
-        self.base_url = base_url
-        self.client = httpx.AsyncClient(base_url=self.base_url)
+    def __init__(self, base_url: str):
+        self.client = httpx.AsyncClient(base_url=base_url)
 
     async def get_signed_url(
         self,

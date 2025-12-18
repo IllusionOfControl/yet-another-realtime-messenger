@@ -22,9 +22,9 @@ from app.models import ContactStatus
 from app.schemas import (
     ContactResponse,
     SearchParams,
-    UserProfileCreateRequest,
+    UserProfileCreate,
     UserProfileResponse,
-    UserProfileUpdateRequest,
+    UserProfileUpdate,
     UserSearchResult,
 )
 from app.services.file_upload_client import FileUploadClient, get_file_upload_client
@@ -38,12 +38,12 @@ async def ping():
 
 
 @router.post(
-    path="/users/internal/create-profile",
+    "/users/internal/create-profile",
     response_model=UserProfileResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user_profile_internal(
-    user_profile_create: UserProfileCreateRequest,
+    user_profile_create: UserProfileCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     if await get_user_profile_by_username(db, user_profile_create.username):
@@ -130,7 +130,7 @@ async def read_users_me(
 
 @router.put(path="/users/me", response_model=UserProfileResponse)
 async def update_users_me(
-    user_profile_update: UserProfileUpdateRequest,
+    user_profile_update: UserProfileUpdate,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
@@ -238,28 +238,28 @@ async def read_user_profile(
 
 
 @router.post(
-    "/users/me/contacts/{contact_user_id}/friend", response_model=ContactResponse
+    "/users/me/contacts/{contact_id}/friend", response_model=ContactResponse
 )
 async def add_friend(
-    contact_user_id: uuid.UUID,
+    contact_id: uuid.UUID,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    if current_user_id == contact_user_id:
+    if current_user_id == contact_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot add yourself as a friend",
         )
 
-    contact_profile = await get_user_profile_by_id(db, contact_user_id)
+    contact_profile = await get_user_profile_by_id(db, contact_id)
     if not contact_profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact user not found"
         )
 
     contact_entry = await add_or_update_contact(
-        db, current_user_id, contact_user_id, ContactStatus.FRIEND
+        db, current_user_id, contact_id, ContactStatus.FRIEND
     )
 
     avatar_url = None
@@ -270,7 +270,7 @@ async def add_friend(
 
     return ContactResponse(
         id=contact_entry.id,
-        contact_user_id=contact_entry.contact_user_id,
+        contact_id=contact_entry.contact_id,
         status=contact_entry.status,
         username=contact_profile.username,
         display_name=contact_profile.display_name,
@@ -279,27 +279,27 @@ async def add_friend(
 
 
 @router.post(
-    "/users/me/contacts/{contact_user_id}/block", response_model=ContactResponse
+    "/users/me/contacts/{contact_id}/block", response_model=ContactResponse
 )
 async def block_user(
-    contact_user_id: uuid.UUID,
+    contact_id: uuid.UUID,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    if current_user_id == contact_user_id:
+    if current_user_id == contact_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot block yourself"
         )
 
-    contact_profile = await get_user_profile_by_id(db, contact_user_id)
+    contact_profile = await get_user_profile_by_id(db, contact_id)
     if not contact_profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User to block not found"
         )
 
     contact_entry = await add_or_update_contact(
-        db, current_user_id, contact_user_id, ContactStatus.BLOCKED
+        db, current_user_id, contact_id, ContactStatus.BLOCKED
     )
 
     avatar_url = None
@@ -310,7 +310,7 @@ async def block_user(
 
     return ContactResponse(
         id=contact_entry.id,
-        contact_user_id=contact_entry.contact_user_id,
+        contact_id=contact_entry.contact_id,
         status=contact_entry.status,
         username=contact_profile.username,
         display_name=contact_profile.display_name,
@@ -319,15 +319,15 @@ async def block_user(
 
 
 @router.delete(
-    "/users/me/contacts/{contact_user_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/users/me/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def remove_contact(
-    contact_user_id: uuid.UUID,
+    contact_id: uuid.UUID,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
 ):
-    success = await remove_contact_entry(db, current_user_id, contact_user_id)
+    success = await remove_contact_entry(db, current_user_id, contact_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
@@ -345,7 +345,7 @@ async def get_my_contacts(
     results = []
     for contact_entry in user_contacts:
         contact_profile = await get_user_profile_by_id(
-            db, contact_entry.contact_user_id
+            db, contact_entry.contact_id
         )
         if not contact_profile:
             continue  # Should not happen if data integrity is maintained
@@ -359,7 +359,7 @@ async def get_my_contacts(
         results.append(
             ContactResponse(
                 id=contact_entry.id,
-                contact_user_id=contact_entry.contact_user_id,
+                contact_id=contact_entry.contact_id,
                 status=contact_entry.status,
                 username=contact_profile.username,
                 display_name=contact_profile.display_name,

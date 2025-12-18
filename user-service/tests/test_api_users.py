@@ -5,9 +5,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import create_user_profile
-from app.schemas import UserProfileCreateRequest, UserProfileUpdateRequest
-
-TEST_USERNAME = "current_test_user"
+from app.schemas import UserProfileCreate, UserProfileUpdate
 
 
 @pytest.mark.asyncio
@@ -31,15 +29,19 @@ async def test_create_user_profile_internal(
 async def test_read_users_me(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
     user_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
+        db_session, UserProfileCreate(username=username, display_name=display_name, email=email)
     )
 
     response = await client.get(
         "/api/v1/users/me", headers={"X-User-Id": str(user_profile.id)}
     )
     assert response.status_code == 200
-    assert response.json()["username"] == TEST_USERNAME
+    assert response.json()["username"] == username
     mock_file_upload_client.get_signed_url.assert_not_called()
 
 
@@ -47,30 +49,42 @@ async def test_read_users_me(
 async def test_update_users_me(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
     user_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
+        db_session, UserProfileCreate(username=username, display_name=display_name, email=email)
     )
 
-    update_data = UserProfileUpdateRequest(
-        display_name="Updated Display", bio="My new bio"
+    updated_display_name = "Updated Display"
+    updated_bio="My new bio"
+    
+    update_data = UserProfileUpdate(
+        display_name=updated_display_name, bio=updated_bio
     )
     response = await client.put(
         "/api/v1/users/me",
         headers={"X-User-Id": str(user_profile.id)},
-        json=update_data.model_dump(exclude_unset=True),  # Send only changed fields
+        json=update_data.model_dump(exclude_unset=True),
     )
     assert response.status_code == 200
-    assert response.json()["display_name"] == "Updated Display"
-    assert response.json()["bio"] == "My new bio"
+    assert response.json()["display_name"] == updated_display_name
+    assert response.json()["bio"] == updated_bio
 
 
 @pytest.mark.asyncio
 async def test_upload_user_avatar(
     client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
 ):
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
     user_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username=TEST_USERNAME)
+        db_session, UserProfileCreate(username=username, display_name=display_name, email=email)
     )
+
 
     mock_file_upload_client.upload_file.return_value = {
         "id": str(uuid.uuid4()),
@@ -99,24 +113,28 @@ async def test_read_user_profile(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
 ):
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
     user_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username="otheruser")
+        db_session, UserProfileCreate(username=username, display_name=display_name, email=email)
     )
 
     response = await client.get(f"/api/v1/users/{user_profile.id}")
     assert response.status_code == 200
-    assert response.json()["username"] == "otheruser"
+    assert response.json()["username"] == username
 
 
 @pytest.mark.asyncio
 async def test_search_users(client: httpx.AsyncClient, db_session: AsyncSession):
     user1_profile = await create_user_profile(
         db_session,
-        UserProfileCreateRequest(username="searchuser1", display_name="User One"),
+        UserProfileCreate(username="searchuser1", display_name="User One", email="user1@example.com"),
     )
     user2_profile = await create_user_profile(
         db_session,
-        UserProfileCreateRequest(username="searchuser2", display_name="User Two"),
+        UserProfileCreate(username="searchuser2", display_name="User Two", email="user2@example.com"),
     )
 
     response = await client.get("/api/v1/users/search?query=user1")

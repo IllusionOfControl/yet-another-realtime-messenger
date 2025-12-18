@@ -7,31 +7,28 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 from app.models import ContactStatus
 
 
-class UserProfileBase(BaseModel):
-    username: str = Field(min_length=3, max_length=50)
+class UserProfileCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    display_name: Optional[str] = None
+    email: EmailStr
+
+
+class UserProfileUpdate(BaseModel):
     display_name: Optional[str] = None
     email: Optional[EmailStr] = None
     bio: Optional[str] = None
     custom_status: Optional[str] = None
 
 
-class UserProfileCreateRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=50)
-    display_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-
-
-class UserProfileUpdateRequest(BaseModel):
-    display_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    bio: Optional[str] = None
-    custom_status: Optional[str] = None
-
-
-class UserProfileResponse(UserProfileBase):
+class UserProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    username: str = Field(min_length=3, max_length=32)
+    display_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    bio: Optional[str] = None
+    custom_status: Optional[str] = None
     avatar_url: Optional[HttpUrl] = None
     created_at: datetime
     updated_at: datetime
@@ -48,7 +45,7 @@ class UserSearchResult(BaseModel):
 class ContactResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
     id: uuid.UUID
-    contact_user_id: uuid.UUID
+    contact_id: uuid.UUID
     status: ContactStatus
     username: str
     display_name: Optional[str] = None

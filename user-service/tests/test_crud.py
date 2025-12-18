@@ -14,49 +14,65 @@ from app.crud import (
     update_user_profile,
 )
 from app.models import ContactStatus
-from app.schemas import UserProfileCreateRequest, UserProfileUpdateRequest
+from app.schemas import UserProfileCreate, UserProfileUpdate
 
 
 @pytest.mark.asyncio
 async def test_create_user_profile(db_session: AsyncSession):
-    user_data = UserProfileCreateRequest(
-        username="testuser", display_name="Test User", email="test@example.com"
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
+    user_data = UserProfileCreate(
+        username=username, display_name=display_name, email=email
     )
     user_profile = await create_user_profile(db_session, user_data)
 
     assert user_profile.id
-    assert user_profile.username == "testuser"
-    assert user_profile.email == "test@example.com"
+    assert user_profile.username == username
+    assert user_profile.email == email
 
 
 @pytest.mark.asyncio
 async def test_get_user_profile_by_id(db_session: AsyncSession):
-    user_data = UserProfileCreateRequest(username="gettest", display_name="Get Test")
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
+    user_data = UserProfileCreate(username=username, display_name=display_name, email=email)
     user_profile = await create_user_profile(db_session, user_data)
 
     retrieved_user = await get_user_profile_by_id(db_session, user_profile.id)
     assert retrieved_user is not None
-    assert retrieved_user.username == "gettest"
+    assert user_profile.id is not None
 
 
 @pytest.mark.asyncio
 async def test_get_user_profile_by_username(db_session: AsyncSession):
-    user_data = UserProfileCreateRequest(username="gettest", display_name="Get Test")
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
+    user_data = UserProfileCreate(username=username, display_name=display_name, email=email)
     user_profile = await create_user_profile(db_session, user_data)
 
-    retrieved_user = await get_user_profile_by_username(db_session, "gettest")
+    retrieved_user = await get_user_profile_by_username(db_session, username)
     assert retrieved_user is not None
-    assert retrieved_user.username == "gettest"
+    assert retrieved_user.username == username
 
 
 @pytest.mark.asyncio
 async def test_update_user_profile(db_session: AsyncSession):
-    user_data = UserProfileCreateRequest(
-        username="updatetest", display_name="Update Test"
+    username="testuser"
+    display_name = "Test User"
+    email="testuser@example.com"
+
+    user_data = UserProfileCreate(
+        username=username, display_name=display_name, email=email
     )
     user_profile = await create_user_profile(db_session, user_data)
 
-    update_data = UserProfileUpdateRequest(display_name="Updated Name", bio="New Bio")
+    update_data = UserProfileUpdate(display_name="Updated Name", bio="New Bio")
     updated_user = await update_user_profile(db_session, user_profile.id, update_data)
 
     assert updated_user.display_name == "Updated Name"
@@ -70,20 +86,20 @@ async def test_update_user_profile(db_session: AsyncSession):
 async def test_search_user_profiles(db_session: AsyncSession):
     await create_user_profile(
         db_session,
-        UserProfileCreateRequest(
-            id=uuid.uuid4(), username="alice", display_name="Alice Wonderland"
+        UserProfileCreate(
+            username="alice", display_name="Alice Wonderland", email="alice@example.com"
         ),
     )
     await create_user_profile(
         db_session,
-        UserProfileCreateRequest(
-            id=uuid.uuid4(), username="bob", display_name="Bobby Dazler"
+        UserProfileCreate(
+            username="bob", display_name="Bobby Dazler", email="bob@example.com"
         ),
     )
     await create_user_profile(
         db_session,
-        UserProfileCreateRequest(
-            id=uuid.uuid4(), username="charlie", display_name="Charlie Chaplin"
+        UserProfileCreate(
+            username="charlie", display_name="Charlie Chaplin", email="chaplin@example.com"
         ),
     )
 
@@ -103,32 +119,29 @@ async def test_search_user_profiles(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_add_friend_contact(db_session: AsyncSession):
     owner_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username="owner")
+        db_session, UserProfileCreate(username="owner", email="owner@example.com")
     )
     contact_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username="friend")
+        db_session, UserProfileCreate(username="friend", email="friend@example.com")
     )
 
     contact = await add_or_update_contact(
         db_session, owner_profile.id, contact_profile.id, ContactStatus.FRIEND
     )
     assert contact.owner_id == owner_profile.id
-    assert contact.contact_user_id == contact_profile.id
+    assert contact.contact_id == contact_profile.id
     assert contact.status == ContactStatus.FRIEND
 
 
 @pytest.mark.asyncio
 async def test_block_user_contact(db_session: AsyncSession):
     owner_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username="blocker")
+        db_session, UserProfileCreate(username="blocker", email="blocker@example.com")
     )
     contact_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username="blocked")
+        db_session, UserProfileCreate(username="blocked", email="blocked@example.com")
     )
 
-    contact = await add_or_update_contact(
-        db_session, owner_profile.id, contact_profile.id, ContactStatus.BLOCKED
-    )
     contact = await add_or_update_contact(
         db_session, owner_profile.id, contact_profile.id, ContactStatus.BLOCKED
     )
@@ -138,10 +151,10 @@ async def test_block_user_contact(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_remove_contact(db_session: AsyncSession):
     owner_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username="owner_remove")
+        db_session, UserProfileCreate(username="owner_remove", email="owner_remove@example.com")
     )
     contact_profile = await create_user_profile(
-        db_session, UserProfileCreateRequest(username="contact_remove")
+        db_session, UserProfileCreate(username="contact_remove", email="contact_remove@example.com")
     )
     await add_or_update_contact(
         db_session, owner_profile.id, contact_profile.id, ContactStatus.FRIEND

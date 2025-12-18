@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ContactStatus, UserContact, UserProfile
-from app.schemas import UserProfileCreateRequest, UserProfileUpdateRequest
+from app.schemas import UserProfileCreate, UserProfileUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +58,12 @@ async def get_user_profile_by_email(
 
 
 async def create_user_profile(
-    db: AsyncSession, user_profile: UserProfileCreateRequest
+    db: AsyncSession, user_profile: UserProfileCreate
 ) -> UserProfile:
     logger.info(f"Creating new user profile for username: {user_profile.username}")
     db_user_profile = UserProfile(
         username=user_profile.username,
-        display_name=user_profile.display_name,
+        display_name=user_profile.display_name or user_profile.username,
         email=user_profile.email,
     )
     try:
@@ -82,7 +82,7 @@ async def create_user_profile(
 
 
 async def update_user_profile(
-    db: AsyncSession, user_id: uuid.UUID, user_profile_update: UserProfileUpdateRequest
+    db: AsyncSession, user_id: uuid.UUID, user_profile_update: UserProfileUpdate
 ) -> Optional[UserProfile]:
     db_user_profile = await get_user_profile_by_id(db, user_id)
     if db_user_profile:
@@ -141,35 +141,35 @@ async def search_user_profiles(
 
 
 async def get_contact_entry(
-    db: AsyncSession, owner_id: uuid.UUID, contact_user_id: uuid.UUID
+    db: AsyncSession, owner_id: uuid.UUID, contact_id: uuid.UUID
 ) -> Optional[UserContact]:
     stmt = select(UserContact).where(
         and_(
             UserContact.owner_id == owner_id,
-            UserContact.contact_user_id == contact_user_id,
+            UserContact.contact_id == contact_id,
         )
     )
     result = await db.execute(stmt)
     contact = result.scalar_one_or_none()
     if contact:
         logger.debug(
-            f"Contact entry found for {owner_id} and {contact_user_id} with status: {contact.status.name}"
+            f"Contact entry found for {owner_id} and {contact_id} with status: {contact.status.name}"
         )
     else:
-        logger.debug(f"No contact entry found for {owner_id} and {contact_user_id}")
+        logger.debug(f"No contact entry found for {owner_id} and {contact_id}")
     return contact
 
 
 async def add_or_update_contact(
     db: AsyncSession,
     owner_id: uuid.UUID,
-    contact_user_id: uuid.UUID,
+    contact_id: uuid.UUID,
     status: ContactStatus,
 ) -> UserContact:
     logger.info(
-        f"Attempting to add or update contact for owner {owner_id} with user {contact_user_id}, status: {status.name}"
+        f"Attempting to add or update contact for owner {owner_id} with user {contact_id}, status: {status.name}"
     )
-    existing_contact = await get_contact_entry(db, owner_id, contact_user_id)
+    existing_contact = await get_contact_entry(db, owner_id, contact_id)
     if existing_contact:
         logger.debug(
             f"Existing contact found, updating status from {existing_contact.status.name} to {status.name}"
@@ -178,7 +178,7 @@ async def add_or_update_contact(
         await db.commit()
         await db.refresh(existing_contact)
         logger.info(
-            f"Contact for {owner_id} and {contact_user_id} updated to status: {status.name}"
+            f"Contact for {owner_id} and {contact_id} updated to status: {status.name}"
         )
         return existing_contact
     else:
@@ -186,42 +186,42 @@ async def add_or_update_contact(
             f"No existing contact found, creating new entry with status: {status.name}"
         )
         new_contact = UserContact(
-            owner_id=owner_id, contact_user_id=contact_user_id, status=status
+            owner_id=owner_id, contact_id=contact_id, status=status
         )
         db.add(new_contact)
         try:
             await db.commit()
             await db.refresh(new_contact)
             logger.info(
-                f"New contact for {owner_id} and {contact_user_id} created with status: {status.name}"
+                f"New contact for {owner_id} and {contact_id} created with status: {status.name}"
             )
             return new_contact
         except IntegrityError:
             await db.rollback()
             logger.warning(
-                f"Integrity error (race condition likely) when adding contact for {owner_id} and {contact_user_id}. Retrying...",
+                f"Integrity error (race condition likely) when adding contact for {owner_id} and {contact_id}. Retrying...",
                 exc_info=True,
             )
-            return await add_or_update_contact(db, owner_id, contact_user_id, status)
+            return await add_or_update_contact(db, owner_id, contact_id, status)
 
 
 async def remove_contact_entry(
-    db: AsyncSession, owner_id: uuid.UUID, contact_user_id: uuid.UUID
+    db: AsyncSession, owner_id: uuid.UUID, contact_id: uuid.UUID
 ) -> bool:
     logger.info(
-        f"Attempting to remove contact entry for owner {owner_id} and contact {contact_user_id}"
+        f"Attempting to remove contact entry for owner {owner_id} and contact {contact_id}"
     )
-    contact_entry = await get_contact_entry(db, owner_id, contact_user_id)
+    contact_entry = await get_contact_entry(db, owner_id, contact_id)
     if contact_entry:
         await db.delete(contact_entry)
         await db.commit()
         logger.info(
-            f"Contact entry for {owner_id} and {contact_user_id} successfully removed."
+            f"Contact entry for {owner_id} and {contact_id} successfully removed."
         )
         return True
     else:
         logger.warning(
-            f"Contact entry not found for owner {owner_id} and contact {contact_user_id}. No action taken."
+            f"Contact entry not found for owner {owner_id} and contact {contact_id}. No action taken."
         )
     return False
 

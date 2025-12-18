@@ -2,16 +2,12 @@ import enum
 import uuid
 
 from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
     Enum,
     ForeignKey,
-    String,
     UniqueConstraint,
     func,
+    String,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.database import Base
@@ -26,15 +22,14 @@ class UserProfile(Base):
     __tablename__ = "user_profiles"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    username: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     display_name: Mapped[str] = mapped_column(nullable=True)
-    email: Mapped[str] = mapped_column(unique=True, index=True, nullable=True)
+    email: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
     bio: Mapped[str] = mapped_column(nullable=True)
-    avatar_file_id: Mapped[str] = mapped_column(nullable=True)
+    avatar_file_id: Mapped[uuid.UUID] = mapped_column(nullable=True)
     custom_status: Mapped[str] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
-    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now(), nullable=False)
 
     owned_contacts = relationship(
         "UserContact",
@@ -45,7 +40,7 @@ class UserProfile(Base):
     )
     related_contacts = relationship(
         "UserContact",
-        foreign_keys="UserContact.contact_user_id",
+        foreign_keys="UserContact.contact_id",
         back_populates="contact",
         lazy="selectin",
         cascade="all, delete-orphan",
@@ -60,20 +55,20 @@ class UserContact(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_profiles.id"), nullable=False)
-    contact_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_profiles.id"), nullable=False)
+    contact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_profiles.id"), nullable=False)
     status: Mapped[ContactStatus] = mapped_column(Enum(ContactStatus), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
 
     __table_args__ = (
-        UniqueConstraint("owner_id", "contact_user_id", name="_owner_contact_uc"),
+        UniqueConstraint("owner_id", "contact_id", name="_owner_contact_uc"),
     )
 
     owner = relationship(
         "UserProfile", foreign_keys=[owner_id], back_populates="owned_contacts"
     )
     contact = relationship(
-        "UserProfile", foreign_keys=[contact_user_id], back_populates="related_contacts"
+        "UserProfile", foreign_keys=[contact_id], back_populates="related_contacts"
     )
 
     def __repr__(self):
-        return f"<UserContact(owner_id='{self.owner_id}', contact_user_id='{self.contact_user_id}', status='{self.status.name}')>"
+        return f"<UserContact(owner_id='{self.owner_id}', contact_id='{self.contact_id}', status='{self.status.name}')>"

@@ -16,9 +16,7 @@ class Settings(BaseSettings):
 
     database_url: str
 
-    service_token: str
     file_upload_service_url: str
-    file_upload_service_token: str
 
     log_level: str = Field("info")
     log_format: str = Field("text")
