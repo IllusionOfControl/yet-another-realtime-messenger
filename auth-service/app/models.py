@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, String, ForeignKey, UniqueConstraint
+from sqlalchemy import func, String, ForeignKey, UniqueConstraint, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional
 
@@ -27,10 +27,10 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     
-    local_auth: Mapped[Optional["UserLocalAuth"]] = relationship(back_populates="user")
-    external_auths: Mapped[list["UserExternalAuth"]] = relationship(back_populates="user")
-    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user")
-    roles: Mapped[list["UserRole"]] = relationship(back_populates="user")
+    local_auth: Mapped[Optional["UserLocalAuth"]] = relationship(back_populates="user", lazy="joined")
+    external_auths: Mapped[list["UserExternalAuth"]] = relationship(back_populates="user", lazy="selectin")
+    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", lazy="selectin")
+    roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="selectin")
 
     def __repr__(self):
         return f"<User(id='{self.id}')>"
@@ -44,10 +44,16 @@ class UserLocalAuth(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     
-    password_updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+    password_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
     email_updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+    
+    email_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    verification_code: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="local_auth")
+
+    def __repr__(self):
+        return f"<UserLocalAuth(user_id='{self.user_id}')>"
 
 
 class UserExternalAuth(Base):
@@ -63,11 +69,14 @@ class UserExternalAuth(Base):
     
     created_at: Mapped[datetime] = mapped_column(default=func.now())
 
-    user: Mapped["User"] = relationship(back_populates="external_auths")
+    user: Mapped["User"] = relationship(back_populates="external_auths", lazy="joined")
 
     __table_args__ = (
         UniqueConstraint('provider', 'provider_user_id', name='_provider_user_uc'),
     )
+
+    def __repr__(self):
+        return f"<UserExternalAuth(id='{self.id}', user_id='{self.user_id}, provider='{self.provider}')>"
 
 
 class UserRole(Base):
@@ -88,9 +97,10 @@ class UserSession(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    jti: Mapped[uuid.UUID] = mapped_column(unique=True, nullable=False, index=True)
-    issued_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(nullable=False)
+    access_token_jti: Mapped[uuid.UUID] = mapped_column(unique=True, nullable=False)
+    refresh_token_jti: Mapped[uuid.UUID] = mapped_column(unique=True, nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     user_agent: Mapped[Optional[str]] = mapped_column(nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
@@ -98,4 +108,4 @@ class UserSession(Base):
     user: Mapped[User] = relationship("User", back_populates="sessions")
 
     def __repr__(self):
-        return f"<UserSession(id='{self.id}', user_id='{self.user_id}', jti='{self.jti}', is_active={self.is_active})>"
+        return f"<UserSession(id='{self.id}', user_id='{self.user_id}', is_active={self.is_active})>"
