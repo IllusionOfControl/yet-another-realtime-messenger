@@ -101,8 +101,8 @@ async def create_local_user(
 async def create_user_session(
     db: AsyncSession,
     user_id: uuid.UUID,
-    refresh_token_jti: uuid.UUID,
     access_token_jti: uuid.UUID,
+    refresh_token_jti: uuid.UUID,
     issued_at: datetime,
     expires_at: datetime,
     user_agent: Optional[str] = None,
@@ -111,8 +111,8 @@ async def create_user_session(
     logger.info(f"Creating new user session: {user_id}")
     db_session = UserSession(
         user_id=user_id,
-        refresh_token_jti=refresh_token_jti,
         access_token_jti=access_token_jti,
+        refresh_token_jti=refresh_token_jti,
         issued_at=issued_at,
         expires_at=expires_at,
         user_agent=user_agent,
@@ -174,6 +174,24 @@ async def create_session(
     await db.commit()
     await db.refresh(db_session)
     return db_session
+
+
+async def update_session_after_refresh(
+    db: AsyncSession, 
+    session: UserSession, 
+    new_access_jti: uuid.UUID, 
+    new_refresh_jti: uuid.UUID,
+    new_issued_at: uuid.UUID,
+    new_expires_at: datetime,
+) -> UserSession:
+    session.access_token_jti = new_access_jti
+    session.refresh_token_jti = new_refresh_jti
+    session.issued_at = new_issued_at
+    session.expires_at = new_expires_at
+    
+    await db.commit()
+    await db.refresh(session)
+    return session
 
 
 async def get_active_session(db: AsyncSession, session_id: uuid.UUID) -> Optional[UserSession]:
