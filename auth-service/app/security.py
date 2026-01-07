@@ -21,14 +21,12 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(
-    data: dict[str, Any], secret_key: str, expires_delta: timedelta
+    data: dict[str, Any], secret_key: str, issued_at: datetime, expires_at: datetime
 ) -> str:
     to_encode = data.copy()
 
-    expire = datetime.now(timezone.utc) + expires_delta
-
     to_encode.update(
-        {"exp": expire, "sub": str(data["user_id"]), "iat": datetime.now(timezone.utc)}
+        {"exp": expires_at, "sub": str(data["user_id"]), "iat": issued_at}
     )
 
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm="HS256")
@@ -37,18 +35,16 @@ def create_access_token(
 
 
 def create_refresh_token(
-    data: dict[str, Any], secret_key: str, expires_delta: timedelta
+    data: dict[str, Any], secret_key: str, issued_at: datetime, expires_at: datetime
 ) -> str:
     to_encode = data.copy()
-
-    expire = datetime.now(timezone.utc) + expires_delta
 
     jti = str(uuid.uuid4())
     to_encode.update(
         {
-            "exp": expire,
+            "exp": expires_at,
             "sub": str(data["user_id"]),
-            "iat": datetime.now(timezone.utc),
+            "iat": issued_at,
             "jti": jti,
         }
     )
