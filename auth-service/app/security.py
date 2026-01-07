@@ -1,5 +1,4 @@
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Any, Optional
 
 import jwt
@@ -26,7 +25,7 @@ def create_access_token(
     to_encode = data.copy()
 
     to_encode.update(
-        {"exp": expires_at, "sub": str(data["user_id"]), "iat": issued_at}
+        {"exp": expires_at, "iat": issued_at}
     )
 
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm="HS256")
@@ -39,16 +38,12 @@ def create_refresh_token(
 ) -> str:
     to_encode = data.copy()
 
-    jti = str(uuid.uuid4())
     to_encode.update(
-        {
-            "exp": expires_at,
-            "sub": str(data["user_id"]),
-            "iat": issued_at,
-            "jti": jti,
-        }
+        {"exp": expires_at, "iat": issued_at}
     )
+
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm="HS256")
+
     return encoded_jwt
 
 
