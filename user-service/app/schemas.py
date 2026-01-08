@@ -56,3 +56,10 @@ class SearchParams(BaseModel):
     query: str = Field(min_length=1)
     limit: int = Field(10, gt=0, le=100)
     offset: int = Field(0, ge=0)
+
+
+class TokenData(BaseModel):
+    sub: uuid.UUID
+    scopes: list[str]
+    sid: uuid.UUID
+    jti: uuid.UUID

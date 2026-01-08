@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     file_upload_service_url: str
 
+    secret_key: str
+
     log_level: str = Field("info")
     log_format: str = Field("text")
 

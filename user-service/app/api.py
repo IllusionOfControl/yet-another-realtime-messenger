@@ -17,7 +17,6 @@ from app.crud import (
     update_user_profile,
 )
 from app.database import get_db
-from app.dependencies import get_current_user_id
 from app.models import ContactStatus
 from app.schemas import (
     ContactResponse,
@@ -27,14 +26,15 @@ from app.schemas import (
     UserProfileUpdate,
     UserSearchResult,
 )
+from app.dependencies import require_permission, get_current_user_id, get_token
 from app.services.file_upload_client import FileUploadClient, get_file_upload_client
 
 router = APIRouter(prefix="/api/v1")
 
 
-@router.post("/ping")
-async def ping():
-    return "pong"
+@router.post("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @router.post(
@@ -69,7 +69,11 @@ async def create_user_profile_internal(
     )
 
 
-@router.get("/users/search", response_model=list[UserSearchResult])
+@router.get(
+        "/users/search", 
+        response_model=list[UserSearchResult],
+        dependencies=[Depends(require_permission(["user.profile.search_users"]))]
+    )
 async def search_users(
     search_query: Annotated[SearchParams, Query()],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -97,7 +101,11 @@ async def search_users(
     return results
 
 
-@router.get(path="/users/me", response_model=UserProfileResponse)
+@router.get(
+        path="/users/me", 
+        response_model=UserProfileResponse, 
+        dependencies=[Depends(require_permission(["user.profile.view"]))]
+        )
 async def read_users_me(
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -128,7 +136,11 @@ async def read_users_me(
     )
 
 
-@router.put(path="/users/me", response_model=UserProfileResponse)
+@router.put(
+        path="/users/me", 
+        response_model=UserProfileResponse,
+        dependencies=[Depends(require_permission(["user.profile.edit"]))]
+        )
 async def update_users_me(
     user_profile_update: UserProfileUpdate,
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
@@ -162,18 +174,21 @@ async def update_users_me(
     )
 
 
-@router.post("/users/me/avatar", response_model=UserProfileResponse)
+@router.post(
+    "/users/me/avatar", 
+    response_model=UserProfileResponse,
+    dependencies=[Depends(require_permission(["user.profile.upload_avatar"]))],
+)
 async def upload_user_avatar(
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file: Annotated[UploadFile, File(...)],
     file_upload_client: Annotated[FileUploadClient, Depends(get_file_upload_client)],
+    token: Annotated[str, Depends(get_token)]
 ):
-    auth_header = "Bearer some_internal_or_forwarded_token"
-
     file_content = await file.read()
     uploaded_file_info = await file_upload_client.upload_file(
-        file_content, file.filename, file.content_type, auth_header
+        file_content, file.filename, file.content_type, token
     )
 
     if not uploaded_file_info:
@@ -206,7 +221,11 @@ async def upload_user_avatar(
     )
 
 
-@router.get("/users/{user_id}", response_model=UserProfileResponse)
+@router.get(
+    "/users/{user_id}", 
+    response_model=UserProfileResponse,
+    dependencies=[Depends(require_permission(["user.profile.view_any"]))],
+)
 async def read_user_profile(
     user_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -238,7 +257,9 @@ async def read_user_profile(
 
 
 @router.post(
-    "/users/me/contacts/{contact_id}/friend", response_model=ContactResponse
+    "/users/me/contacts/{contact_id}/friend", 
+    response_model=ContactResponse,
+    dependencies=[Depends(require_permission(["user.contacts.manage"]))],
 )
 async def add_friend(
     contact_id: uuid.UUID,
@@ -279,7 +300,9 @@ async def add_friend(
 
 
 @router.post(
-    "/users/me/contacts/{contact_id}/block", response_model=ContactResponse
+    "/users/me/contacts/{contact_id}/block", 
+    response_model=ContactResponse,
+    dependencies=[Depends(require_permission(["user.contacts.manage"]))],
 )
 async def block_user(
     contact_id: uuid.UUID,
@@ -319,7 +342,9 @@ async def block_user(
 
 
 @router.delete(
-    "/users/me/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/users/me/contacts/{contact_id}", 
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission(["user.contacts.manage"]))]
 )
 async def remove_contact(
     contact_id: uuid.UUID,
@@ -335,7 +360,11 @@ async def remove_contact(
     return
 
 
-@router.get("/users/me/contacts", response_model=list[ContactResponse])
+@router.get(
+        "/users/me/contacts", 
+        response_model=list[ContactResponse],
+        dependencies=[Depends(require_permission(["user.contacts.manage"]))]
+        )
 async def get_my_contacts(
     current_user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
