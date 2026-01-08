@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
+import jwt
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -15,7 +16,7 @@ from app.models import UserProfile, UserContact, ContactStatus
 import random
 
 from faker import Faker
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 fake = Faker()
 
@@ -66,7 +67,7 @@ def mock_file_upload_client():
 
 
 @pytest.fixture(autouse=True)
-def override_fastapi_depends(app, db_session, mock_file_upload_client):
+def override_fastapi_depends(app: FastAPI, db_session, mock_file_upload_client):
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_file_upload_client] = lambda: mock_file_upload_client
 
@@ -103,3 +104,21 @@ def user_contact_factory():
             created_at=kwargs.get("created_at", datetime.now(timezone.utc)),
         )
     return _user_contact_factory
+
+
+@pytest.fixture(scope="function")
+def jwt_token_factory():
+    settings = get_settings()
+    
+    def _jwt_token_factory(secret_key: str = settings.secret_key, **kwargs):
+        payload = {
+            "sub": str(kwargs.get("sub", uuid.uuid4())),
+            "scopes": kwargs.get("scopes", []),
+            "sid": str(kwargs.get("sid", uuid.uuid4())),
+            "jti": str(kwargs.get("jti", uuid.uuid4())),
+            "exp": kwargs.get("exp", datetime.now(timezone.utc) + timedelta(minutes=15)), 
+            "iat": kwargs.get("iat", datetime.now(timezone.utc)),
+        }
+        return jwt.encode(payload, secret_key, algorithm="HS256")
+    
+    return _jwt_token_factory

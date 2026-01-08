@@ -10,7 +10,7 @@ from app.schemas import UserProfileCreate, UserProfileUpdate
 
 @pytest.mark.asyncio
 async def test_create_user_profile_internal(
-    client: httpx.AsyncClient, db_session: AsyncSession
+    client: httpx.AsyncClient,
 ):
     response = await client.post(
         "/api/v1/users/internal/create-profile",
@@ -27,7 +27,7 @@ async def test_create_user_profile_internal(
 
 @pytest.mark.asyncio
 async def test_read_users_me(
-    client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
+    client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client, jwt_token_factory
 ):
     username="testuser"
     display_name = "Test User"
@@ -37,8 +37,10 @@ async def test_read_users_me(
         db_session, UserProfileCreate(username=username, display_name=display_name, email=email)
     )
 
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.profile.view"])
+
     response = await client.get(
-        "/api/v1/users/me", headers={"X-User-Id": str(user_profile.id)}
+        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     assert response.json()["username"] == username
@@ -47,7 +49,7 @@ async def test_read_users_me(
 
 @pytest.mark.asyncio
 async def test_update_users_me(
-    client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
+    client: httpx.AsyncClient, db_session: AsyncSession, jwt_token_factory
 ):
     username="testuser"
     display_name = "Test User"
@@ -63,9 +65,12 @@ async def test_update_users_me(
     update_data = UserProfileUpdate(
         display_name=updated_display_name, bio=updated_bio
     )
+
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.profile.edit"])
+
     response = await client.put(
         "/api/v1/users/me",
-        headers={"X-User-Id": str(user_profile.id)},
+        headers={"Authorization": f"Bearer {token}"},
         json=update_data.model_dump(exclude_unset=True),
     )
     assert response.status_code == 200
@@ -75,7 +80,7 @@ async def test_update_users_me(
 
 @pytest.mark.asyncio
 async def test_upload_user_avatar(
-    client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
+    client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client, jwt_token_factory
 ):
     username="testuser"
     display_name = "Test User"
@@ -85,7 +90,6 @@ async def test_upload_user_avatar(
         db_session, UserProfileCreate(username=username, display_name=display_name, email=email)
     )
 
-
     mock_file_upload_client.upload_file.return_value = {
         "id": str(uuid.uuid4()),
         "original_file_name": "avatar.png",
@@ -94,12 +98,11 @@ async def test_upload_user_avatar(
     }
 
     file_content = b"fake image data"
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.profile.upload_avatar"])
+
     response = await client.post(
         "/api/v1/users/me/avatar",
-        headers={
-            "X-User-Id": str(user_profile.id),
-            "Authorization": "Bearer dummy_token",
-        },
+        headers={"Authorization": f"Bearer {token}"},
         files={"file": ("avatar.png", file_content, "image/png")},
     )
     assert response.status_code == 200
@@ -110,8 +113,7 @@ async def test_upload_user_avatar(
 
 @pytest.mark.asyncio
 async def test_read_user_profile(
-    client: httpx.AsyncClient,
-    db_session: AsyncSession,
+    client: httpx.AsyncClient, db_session: AsyncSession, jwt_token_factory
 ):
     username="testuser"
     display_name = "Test User"
@@ -121,13 +123,19 @@ async def test_read_user_profile(
         db_session, UserProfileCreate(username=username, display_name=display_name, email=email)
     )
 
-    response = await client.get(f"/api/v1/users/{user_profile.id}")
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.profile.view_any"])
+
+    response = await client.get(f"/api/v1/users/{user_profile.id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["username"] == username
 
 
 @pytest.mark.asyncio
-async def test_search_users(client: httpx.AsyncClient, db_session: AsyncSession):
+async def test_search_users(client: httpx.AsyncClient, db_session: AsyncSession, jwt_token_factory):
+    user_profile = await create_user_profile(
+        db_session,
+        UserProfileCreate(username="user", display_name="User", email="user@example.com"),
+    )
     user1_profile = await create_user_profile(
         db_session,
         UserProfileCreate(username="searchuser1", display_name="User One", email="user1@example.com"),
@@ -137,12 +145,13 @@ async def test_search_users(client: httpx.AsyncClient, db_session: AsyncSession)
         UserProfileCreate(username="searchuser2", display_name="User Two", email="user2@example.com"),
     )
 
-    response = await client.get("/api/v1/users/search?query=user1")
-    print(response.json())
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.profile.search_users"])
+
+    response = await client.get("/api/v1/users/search?query=user1", headers={"Authorization": f"Bearer {token}"},)
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["username"] == "searchuser1"
 
-    response = await client.get("/api/v1/users/search?query=User&limit=1")
+    response = await client.get("/api/v1/users/search?query=User&limit=1", headers={"Authorization": f"Bearer {token}"},)
     assert response.status_code == 200
     assert len(response.json()) == 1

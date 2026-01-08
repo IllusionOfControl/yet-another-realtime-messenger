@@ -9,7 +9,7 @@ from app.schemas import UserProfileCreate
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_add_friend(
-    client: TestClient, db_session: AsyncSession, mock_file_upload_client
+    client: TestClient, db_session: AsyncSession, jwt_token_factory
 ):
     username_user="testuser"
     display_name_user = "Test User"
@@ -26,9 +26,11 @@ async def test_add_friend(
         db_session, UserProfileCreate(username=username_friend, display_name=display_name_friend, email=email_friend)
     )
 
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.contacts.manage"])
+
     response = await client.post(
         f"/api/v1/users/me/contacts/{friend_profile.id}/friend",
-        headers={"X-User-Id": str(user_profile.id)},
+        headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     assert response.json()["contact_id"] == str(friend_profile.id)
@@ -37,7 +39,7 @@ async def test_add_friend(
 
 @pytest.mark.asyncio
 async def test_block_user(
-    client: httpx.AsyncClient, db_session: AsyncSession, mock_file_upload_client
+    client: httpx.AsyncClient, db_session: AsyncSession, jwt_token_factory
 ):
     username_user="testuser"
     display_name_user = "Test User"
@@ -54,9 +56,11 @@ async def test_block_user(
         db_session, UserProfileCreate(username=username_blocked, display_name=display_name_blocked, email=email_blocked)
     )
 
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.contacts.manage"])
+
     response = await client.post(
         f"/api/v1/users/me/contacts/{blocked_profile.id}/block",
-        headers={"X-User-Id": str(user_profile.id)},
+        headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     assert response.json()["contact_id"] == str(blocked_profile.id)
@@ -64,7 +68,7 @@ async def test_block_user(
 
 
 @pytest.mark.asyncio
-async def test_remove_contact(client: httpx.AsyncClient, db_session: AsyncSession):
+async def test_remove_contact(client: httpx.AsyncClient, db_session: AsyncSession, jwt_token_factory):
     username_user="testuser"
     display_name_user = "Test User"
     email_user="testuser@example.com"
@@ -80,19 +84,21 @@ async def test_remove_contact(client: httpx.AsyncClient, db_session: AsyncSessio
         db_session, UserProfileCreate(username=username_friend, display_name=display_name_friend, email=email_friend)
     )
 
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.contacts.manage"])
+
     await client.post(
         f"/api/v1/users/me/contacts/{contact_profile.id}/friend",
-        headers={"X-User-Id": str(user_profile.id)},
+         headers={"Authorization": f"Bearer {token}"},
     )
 
     response = await client.delete(
         f"/api/v1/users/me/contacts/{contact_profile.id}",
-        headers={"X-User-Id": str(user_profile.id)},
+         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 204
 
     get_response = await client.get(
-        "/api/v1/users/me/contacts", headers={"X-User-Id": str(user_profile.id)}
+        "/api/v1/users/me/contacts", headers={"Authorization": f"Bearer {token}"},
     )
     assert get_response.status_code == 200
     assert len(get_response.json()) == 0
@@ -100,7 +106,7 @@ async def test_remove_contact(client: httpx.AsyncClient, db_session: AsyncSessio
 
 @pytest.mark.asyncio
 async def test_get_my_contacts(
-    client: httpx.AsyncClient, db_session: AsyncSession,
+    client: httpx.AsyncClient, db_session: AsyncSession, jwt_token_factory
 ):
     username_user="testuser"
     display_name_user = "Test User"
@@ -123,18 +129,19 @@ async def test_get_my_contacts(
     blocked_profile = await create_user_profile(
         db_session, UserProfileCreate(username=username_blocked, display_name=display_name_blocked, email=email_blocked)
     )
+    token = jwt_token_factory(sub=user_profile.id, scopes=["user.contacts.manage"])
 
     await client.post(
         f"/api/v1/users/me/contacts/{friend_profile.id}/friend",
-        headers={"X-User-Id": str(user_profile.id)},
+         headers={"Authorization": f"Bearer {token}"},
     )
     await client.post(
         f"/api/v1/users/me/contacts/{blocked_profile.id}/block",
-        headers={"X-User-Id": str(user_profile.id)},
+         headers={"Authorization": f"Bearer {token}"},
     )
 
     response = await client.get(
-        "/api/v1/users/me/contacts", headers={"X-User-Id": str(user_profile.id)}
+        "/api/v1/users/me/contacts", headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     contacts = response.json()
