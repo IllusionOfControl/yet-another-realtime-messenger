@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import create_local_user, is_email_taken, is_username_taken, get_active_session, get_local_auth_by_identifier, get_user_by_id, get_user_by_verification_code, create_session, deactivate_session, deactivate_all_user_sessions, mark_email_as_verified
+from app.crud import create_local_user, is_email_taken, is_username_taken, get_active_session, get_local_auth_by_identifier, get_user_by_id, get_user_by_verification_code, create_session, deactivate_session, deactivate_all_user_sessions, mark_email_as_verified, update_session_after_refresh
 from app.models import UserRoleEnum
 from app.schemas import UserCreateRequest
 
@@ -132,8 +132,10 @@ async def test_session_lifecycle(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_deactivate_all_sessions(db_session: AsyncSession):
     user_id = uuid.uuid4()
-    await create_local_user(db_session, user_id, 
-                               UserCreateRequest(username="multi", email="m@m.com", password="123456"), "h")
+    await create_local_user(
+        db_session, user_id, 
+        UserCreateRequest(username="multi", email="m@m.com", password="123456"), "h"
+    )
     
     await create_session(
         db_session, 
@@ -157,3 +159,40 @@ async def test_deactivate_all_sessions(db_session: AsyncSession):
     stmt = select(UserSession).where(UserSession.user_id == user_id, UserSession.is_active == True)
     result = await db_session.execute(stmt)
     assert len(result.scalars().all()) == 0
+
+
+@pytest.mark.asyncio
+async def test_update_session_after_refresh_success(db_session: AsyncSession):
+    user_id = uuid.uuid4()
+    await create_local_user(
+        db_session, user_id, 
+        UserCreateRequest(username="test_refresh_user", email="refresh@example.com", password="123456"), "h"
+    )
+    
+    session = await create_session(
+        db_session, 
+        user_id, 
+        uuid.uuid4(), 
+        uuid.uuid4(),
+        datetime.now(timezone.utc) + timedelta(1),
+    )
+
+    new_at_jti = uuid.uuid4()
+    new_rt_jti = uuid.uuid4()
+    new_issued_at = datetime.now(timezone.utc)
+    new_expires_at = new_issued_at + timedelta(days=7)
+
+    updated_session = await update_session_after_refresh(
+        db=db_session,
+        session=session,
+        new_access_jti=new_at_jti,
+        new_refresh_jti=new_rt_jti,
+        new_issued_at=new_issued_at,
+        new_expires_at=new_expires_at
+    )
+
+    session = await get_active_session(db_session, session.id)
+    assert session.access_token_jti == new_at_jti
+    assert session.refresh_token_jti == new_rt_jti
+    assert session.issued_at == new_issued_at
+    assert session.expires_at == new_expires_at

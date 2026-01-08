@@ -62,12 +62,14 @@ def test_user_role_model():
 
 def test_user_session_model():
     user_id = uuid.uuid4()
-    jti = uuid.uuid4()
+    access_token_jti = uuid.uuid4()
+    refresh_token_jti = uuid.uuid4()
     expiry = datetime.now(timezone.utc)
     
     session = UserSession(
         user_id=user_id,
-        jti=jti,
+        access_token_jti=access_token_jti,
+        refresh_token_jti=refresh_token_jti,
         expires_at=expiry,
         user_agent="Mozilla/5.0",
         ip_address="192.168.1.1",
@@ -75,7 +77,8 @@ def test_user_session_model():
     )
     
     assert session.user_id == user_id
-    assert session.jti == jti
+    assert session.access_token_jti == access_token_jti
+    assert session.refresh_token_jti == refresh_token_jti
     assert session.expires_at == expiry
     assert session.user_agent == "Mozilla/5.0"
     assert session.ip_address == "192.168.1.1"
