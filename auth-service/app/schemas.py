@@ -25,6 +25,7 @@ class TokenValidationResponse(BaseModel):
     scopes: list[str]
     is_verified: bool
 
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str

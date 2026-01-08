@@ -1,18 +1,16 @@
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
-from datetime import timezone
 from sqlalchemy import delete, or_, select, update
-from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
-from app.models import User, UserRole, UserRoleEnum, UserSession, UserLocalAuth
-from app.schemas import UserCreateRequest
+from app.models import User, UserLocalAuth, UserRole, UserRoleEnum, UserSession
 from app.permissions import ROLES_PERMISSIONS
-
-from datetime import datetime
+from app.schemas import UserCreateRequest
 
 logger = logging.getLogger(__name__)
 
@@ -30,26 +28,19 @@ async def is_username_taken(db: AsyncSession, username: str) -> bool:
 
 
 async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> Optional[User]:
-    stmt = (
-        select(User)
-        .options(selectinload(User.roles))
-        .where(User.id == user_id)
-    )
+    stmt = select(User).options(selectinload(User.roles)).where(User.id == user_id)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 
-async def get_local_auth_by_identifier(db: AsyncSession, identifier: str) -> Optional[UserLocalAuth]:
+async def get_local_auth_by_identifier(
+    db: AsyncSession, identifier: str
+) -> Optional[UserLocalAuth]:
     stmt = (
         select(UserLocalAuth)
-        .options(
-            joinedload(UserLocalAuth.user).selectinload(User.roles)
-        )
+        .options(joinedload(UserLocalAuth.user).selectinload(User.roles))
         .where(
-            or_(
-                UserLocalAuth.username == identifier,
-                UserLocalAuth.email == identifier
-            )
+            or_(UserLocalAuth.username == identifier, UserLocalAuth.email == identifier)
         )
     )
     result = await db.execute(stmt)
@@ -61,7 +52,7 @@ async def create_local_user(
     user_id: uuid.UUID,
     user_data: UserCreateRequest,
     password_hash: str,
-    verification_code: Optional[str] = None
+    verification_code: Optional[str] = None,
 ) -> User:
     try:
         db_user = User(
@@ -74,14 +65,11 @@ async def create_local_user(
             email=user_data.email,
             username=user_data.username,
             password_hash=password_hash,
-            verification_code=verification_code
+            verification_code=verification_code,
         )
         db.add(db_local_auth)
 
-        db_role = UserRole(
-            user_id=user_id,
-            role=UserRoleEnum.USER
-        )
+        db_role = UserRole(user_id=user_id, role=UserRoleEnum.USER)
         db.add(db_role)
 
         await db.commit()
@@ -138,16 +126,15 @@ async def mark_email_as_verified(db: AsyncSession, user_id: uuid.UUID):
     stmt = (
         update(UserLocalAuth)
         .where(UserLocalAuth.user_id == user_id)
-        .values(
-            email_verified_at=datetime.now(timezone.utc),
-            verification_code=None
-        )
+        .values(email_verified_at=datetime.now(timezone.utc), verification_code=None)
     )
     await db.execute(stmt)
     await db.commit()
 
 
-async def get_user_by_verification_code(db: AsyncSession, code: str) -> Optional[UserLocalAuth]:
+async def get_user_by_verification_code(
+    db: AsyncSession, code: str
+) -> Optional[UserLocalAuth]:
     stmt = select(UserLocalAuth).where(UserLocalAuth.verification_code == code)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -177,9 +164,9 @@ async def create_session(
 
 
 async def update_session_after_refresh(
-    db: AsyncSession, 
-    session: UserSession, 
-    new_access_jti: uuid.UUID, 
+    db: AsyncSession,
+    session: UserSession,
+    new_access_jti: uuid.UUID,
     new_refresh_jti: uuid.UUID,
     new_issued_at: uuid.UUID,
     new_expires_at: datetime,
@@ -188,17 +175,19 @@ async def update_session_after_refresh(
     session.refresh_token_jti = new_refresh_jti
     session.issued_at = new_issued_at
     session.expires_at = new_expires_at
-    
+
     await db.commit()
     await db.refresh(session)
     return session
 
 
-async def get_active_session(db: AsyncSession, session_id: uuid.UUID) -> Optional[UserSession]:
+async def get_active_session(
+    db: AsyncSession, session_id: uuid.UUID
+) -> Optional[UserSession]:
     stmt = select(UserSession).where(
         UserSession.id == session_id,
         UserSession.is_active == True,
-        UserSession.expires_at > datetime.now(timezone.utc)
+        UserSession.expires_at > datetime.now(timezone.utc),
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -206,9 +195,7 @@ async def get_active_session(db: AsyncSession, session_id: uuid.UUID) -> Optiona
 
 async def deactivate_session(db: AsyncSession, session_id: uuid.UUID):
     stmt = (
-        update(UserSession)
-        .where(UserSession.id == session_id)
-        .values(is_active=False)
+        update(UserSession).where(UserSession.id == session_id).values(is_active=False)
     )
     await db.execute(stmt)
     await db.commit()
@@ -224,5 +211,5 @@ async def deactivate_all_user_sessions(db: AsyncSession, user_id: uuid.UUID):
     await db.commit()
 
 
-async def get_role_permissions(role: str) -> list[str]: 
+async def get_role_permissions(role: str) -> list[str]:
     return ROLES_PERMISSIONS.get(role, [])

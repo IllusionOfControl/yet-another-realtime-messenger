@@ -1,4 +1,4 @@
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from app.database import get_redis_client
 from app.schemas import TokenData
 from app.security import decode_token
-from app.settings import get_settings, Settings
+from app.settings import Settings, get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
@@ -25,7 +25,7 @@ async def get_current_user_data(
     payload = decode_token(token, settings.secret_key)
     if payload is None:
         raise credentials_exception
-    
+
     # TODO: Проверить Acess Token в чёрном списке
 
     print("payload>", payload)

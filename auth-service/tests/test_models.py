@@ -1,21 +1,20 @@
 import uuid
 from datetime import datetime, timezone
+
 from app.models import (
-    User, 
-    UserLocalAuth, 
-    UserExternalAuth, 
-    UserRole, 
-    UserSession, 
-    UserRoleEnum, 
-    AuthProviderEnum
+    AuthProviderEnum,
+    User,
+    UserExternalAuth,
+    UserLocalAuth,
+    UserRole,
+    UserRoleEnum,
+    UserSession,
 )
+
 
 def test_user_model():
     user_id = uuid.uuid4()
-    user = User(
-        id=user_id,  
-        is_active=True
-    )
+    user = User(id=user_id, is_active=True)
     assert user.id == user_id
     assert user.is_active is True
     assert user.created_at is None
@@ -41,7 +40,7 @@ def test_user_external_auth_model():
         user_id=user_id,
         provider=AuthProviderEnum.GOOGLE,
         provider_user_id="google-unique-subject-id",
-        provider_email="google_user@gmail.com"
+        provider_email="google_user@gmail.com",
     )
     assert external_auth.user_id == user_id
     assert external_auth.provider == AuthProviderEnum.GOOGLE
@@ -52,10 +51,7 @@ def test_user_external_auth_model():
 def test_user_role_model():
     user_id = uuid.uuid4()
     role_enum = UserRoleEnum.ADMIN
-    user_role = UserRole(
-        user_id=user_id, 
-        role=role_enum
-    )
+    user_role = UserRole(user_id=user_id, role=role_enum)
     assert user_role.user_id == user_id
     assert user_role.role == role_enum
 
@@ -65,7 +61,7 @@ def test_user_session_model():
     access_token_jti = uuid.uuid4()
     refresh_token_jti = uuid.uuid4()
     expiry = datetime.now(timezone.utc)
-    
+
     session = UserSession(
         user_id=user_id,
         access_token_jti=access_token_jti,
@@ -73,9 +69,9 @@ def test_user_session_model():
         expires_at=expiry,
         user_agent="Mozilla/5.0",
         ip_address="192.168.1.1",
-        is_active=True
+        is_active=True,
     )
-    
+
     assert session.user_id == user_id
     assert session.access_token_jti == access_token_jti
     assert session.refresh_token_jti == refresh_token_jti

@@ -1,9 +1,23 @@
-import pytest
 import uuid
 from datetime import datetime, timedelta, timezone
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import create_local_user, is_email_taken, is_username_taken, get_active_session, get_local_auth_by_identifier, get_user_by_id, get_user_by_verification_code, create_session, deactivate_session, deactivate_all_user_sessions, mark_email_as_verified, update_session_after_refresh
+from app.crud import (
+    create_local_user,
+    create_session,
+    deactivate_all_user_sessions,
+    deactivate_session,
+    get_active_session,
+    get_local_auth_by_identifier,
+    get_user_by_id,
+    get_user_by_verification_code,
+    is_email_taken,
+    is_username_taken,
+    mark_email_as_verified,
+    update_session_after_refresh,
+)
 from app.models import UserRoleEnum
 from app.schemas import UserCreateRequest
 
@@ -15,7 +29,7 @@ async def test_create_local_user_success(db_session: AsyncSession):
         username="test_user",
         email="test@example.com",
         password="secret_password",
-        display_name="Test Display"
+        display_name="Test Display",
     )
     password_hash = "hashed_content"
     code = "verify_123"
@@ -25,7 +39,7 @@ async def test_create_local_user_success(db_session: AsyncSession):
     )
 
     assert user.id == user_id
-    
+
     assert user.local_auth.username == "test_user"
     assert user.local_auth.email == "test@example.com"
     assert user.local_auth.password_hash == password_hash
@@ -37,7 +51,9 @@ async def test_create_local_user_success(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_is_username_email_taken(db_session: AsyncSession):
     user_id = uuid.uuid4()
-    user_data = UserCreateRequest(username="unique_guy", email="unique@mail.com", password="123456")
+    user_data = UserCreateRequest(
+        username="unique_guy", email="unique@mail.com", password="123456"
+    )
     await create_local_user(db_session, user_id, user_data, "hash")
 
     assert await is_username_taken(db_session, "unique_guy") is True
@@ -66,17 +82,16 @@ async def test_get_local_auth_by_identifier(db_session: AsyncSession):
 
     assert await get_local_auth_by_identifier(db_session, "unknown") is None
 
+
 @pytest.mark.asyncio
 async def test_email_verification_flow(db_session: AsyncSession):
     user_id = uuid.uuid4()
     code = "secret_code"
-    user_data = UserCreateRequest(username="verify_me", email="v@mail.com", password="123456")
+    user_data = UserCreateRequest(
+        username="verify_me", email="v@mail.com", password="123456"
+    )
     await create_local_user(
-        db_session, 
-        user_id, 
-        user_data, 
-        "hash", 
-        verification_code=code
+        db_session, user_id, user_data, "hash", verification_code=code
     )
 
     auth_record = await get_user_by_verification_code(db_session, code)
@@ -90,18 +105,14 @@ async def test_email_verification_flow(db_session: AsyncSession):
     assert updated_auth.local_auth.verification_code is None
 
 
-
 @pytest.mark.asyncio
 async def test_session_lifecycle(db_session: AsyncSession):
     user_id = uuid.uuid4()
     await create_local_user(
-        db_session, 
-        user_id, 
-        UserCreateRequest(
-            username="sess", 
-            email="s@m.com", 
-            password="123456"
-        ), "h"
+        db_session,
+        user_id,
+        UserCreateRequest(username="sess", email="s@m.com", password="123456"),
+        "h",
     )
 
     access_token_jti = uuid.uuid4()
@@ -109,13 +120,13 @@ async def test_session_lifecycle(db_session: AsyncSession):
     expires = datetime.now(timezone.utc) + timedelta(days=1)
 
     session = await create_session(
-        db_session, 
-        user_id, 
+        db_session,
+        user_id,
         access_token_jti,
         refresh_token_jti,
-        expires, 
-        "Mozilla", 
-        "127.0.0.1"
+        expires,
+        "Mozilla",
+        "127.0.0.1",
     )
     assert session.access_token_jti == access_token_jti
     assert session.refresh_token_jti == refresh_token_jti
@@ -133,21 +144,23 @@ async def test_session_lifecycle(db_session: AsyncSession):
 async def test_deactivate_all_sessions(db_session: AsyncSession):
     user_id = uuid.uuid4()
     await create_local_user(
-        db_session, user_id, 
-        UserCreateRequest(username="multi", email="m@m.com", password="123456"), "h"
+        db_session,
+        user_id,
+        UserCreateRequest(username="multi", email="m@m.com", password="123456"),
+        "h",
     )
-    
+
     await create_session(
-        db_session, 
-        user_id, 
-        uuid.uuid4(), 
+        db_session,
+        user_id,
+        uuid.uuid4(),
         uuid.uuid4(),
         datetime.now(timezone.utc) + timedelta(1),
     )
     await create_session(
-        db_session, 
-        user_id, 
-        uuid.uuid4(), 
+        db_session,
+        user_id,
+        uuid.uuid4(),
         uuid.uuid4(),
         datetime.now(timezone.utc) + timedelta(1),
     )
@@ -155,8 +168,12 @@ async def test_deactivate_all_sessions(db_session: AsyncSession):
     await deactivate_all_user_sessions(db_session, user_id)
 
     from sqlalchemy import select
+
     from app.models import UserSession
-    stmt = select(UserSession).where(UserSession.user_id == user_id, UserSession.is_active == True)
+
+    stmt = select(UserSession).where(
+        UserSession.user_id == user_id, UserSession.is_active == True
+    )
     result = await db_session.execute(stmt)
     assert len(result.scalars().all()) == 0
 
@@ -165,14 +182,18 @@ async def test_deactivate_all_sessions(db_session: AsyncSession):
 async def test_update_session_after_refresh_success(db_session: AsyncSession):
     user_id = uuid.uuid4()
     await create_local_user(
-        db_session, user_id, 
-        UserCreateRequest(username="test_refresh_user", email="refresh@example.com", password="123456"), "h"
+        db_session,
+        user_id,
+        UserCreateRequest(
+            username="test_refresh_user", email="refresh@example.com", password="123456"
+        ),
+        "h",
     )
-    
+
     session = await create_session(
-        db_session, 
-        user_id, 
-        uuid.uuid4(), 
+        db_session,
+        user_id,
+        uuid.uuid4(),
         uuid.uuid4(),
         datetime.now(timezone.utc) + timedelta(1),
     )
@@ -188,7 +209,7 @@ async def test_update_session_after_refresh_success(db_session: AsyncSession):
         new_access_jti=new_at_jti,
         new_refresh_jti=new_rt_jti,
         new_issued_at=new_issued_at,
-        new_expires_at=new_expires_at
+        new_expires_at=new_expires_at,
     )
 
     session = await get_active_session(db_session, session.id)
