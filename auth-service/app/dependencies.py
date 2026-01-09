@@ -28,8 +28,6 @@ async def get_current_user_data(
 
     # TODO: Проверить Acess Token в чёрном списке
 
-    print("payload>", payload)
-
     try:
         return TokenData.model_validate(payload)
     except ValueError:

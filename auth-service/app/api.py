@@ -42,11 +42,16 @@ from app.services.user_client import UserClient, UserClientError, get_user_clien
 from app.settings import Settings, get_settings
 from app.utils import generate_random_sequence
 
-router = APIRouter(prefix="/api/v1/auth")
+router = APIRouter(prefix="/api/v1/")
+
+
+@router.post("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @router.post(
-    "/register",
+    "/auth/register",
     response_model=SuccessResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -97,7 +102,7 @@ async def register_user(
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/auth/login", response_model=TokenResponse)
 async def login_for_access_token(
     user_login: UserLoginRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -171,7 +176,7 @@ async def login_for_access_token(
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
-@router.post("/verify-email", response_model=SuccessResponse)
+@router.post("/auth/verify-email", response_model=SuccessResponse)
 async def verify_email(
     code: Annotated[str, Query()], db: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -185,7 +190,7 @@ async def verify_email(
     return SuccessResponse(message="Email successfully verified")
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/auth/refresh", response_model=TokenResponse)
 async def refresh_access_token(
     request: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -253,7 +258,7 @@ async def refresh_access_token(
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     request_body: LogoutRequest,
     current_user_data: Annotated[TokenData, Depends(get_current_user_data)],
@@ -269,7 +274,7 @@ async def logout(
     return {}
 
 
-@router.post("/validate-token", response_model=TokenValidationResponse)
+@router.post("/auth/validate-token", response_model=TokenValidationResponse)
 async def validate_token_internal(
     current_user_data: Annotated[TokenData, Depends(get_current_user_data)],
 ):
