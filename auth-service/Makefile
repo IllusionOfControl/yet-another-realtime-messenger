@@ -1,7 +1,7 @@
 TARGET ?= ""
 
 format:
-	isort ./app ./tests; black ./app	./tests
+	isort ./app ./tests; black ./app ./tests
 
 format_one:
 	isort $(TARGET); black $(TARGET)
