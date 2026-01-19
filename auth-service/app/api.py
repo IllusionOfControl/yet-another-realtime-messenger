@@ -41,6 +41,9 @@ from app.security import (
 from app.services.user_client import UserClient, UserClientError, get_user_client
 from app.settings import Settings, get_settings
 from app.utils import generate_random_sequence
+from redis import Redis
+from app.dependencies import oauth2_scheme
+from app.database import get_redis_client
 
 router = APIRouter(prefix="/api/v1/")
 
@@ -263,8 +266,18 @@ async def logout(
     request_body: LogoutRequest,
     current_user_data: Annotated[TokenData, Depends(get_current_user_data)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    token: Annotated[str, Depends(oauth2_scheme)],
+    redis_client: Annotated[Redis, Depends(get_redis_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ):
-    # TODO: Добавить в чёрный список
+    payload = decode_token(token, settings.secret_key)
+    if payload and "exp" in payload:
+        jti = payload["jti"]
+        exp = payload["exp"]
+        now = datetime.now(timezone.utc).timestamp()
+        ttl = int(exp - now)
+        if ttl > 0:
+            await redis_client.setex(f"blacklist:{jti}", ttl, "true")
 
     if request_body.all_devices:
         await deactivate_all_user_sessions(db, current_user_data.sub)

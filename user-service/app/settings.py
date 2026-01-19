@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     app_port: int = 8000
 
     database_url: str
+    redis_url: str
 
     file_upload_service_url: str
 

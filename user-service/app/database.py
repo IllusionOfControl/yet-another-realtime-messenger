@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 
 from app.settings import get_settings
+from redis import Redis
 
 
 class Base(DeclarativeBase):
@@ -27,3 +28,10 @@ async def get_db():
             yield db
         finally:
             await db.close()
+
+
+@lru_cache
+def get_redis_client():
+    settings = get_settings()
+    redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
+    return redis_client

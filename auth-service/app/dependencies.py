@@ -7,6 +7,7 @@ from app.database import get_redis_client
 from app.schemas import TokenData
 from app.security import decode_token
 from app.settings import Settings, get_settings
+from redis import Redis
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
@@ -14,6 +15,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=F
 async def get_current_user_data(
     token: Annotated[Optional[str], Depends(oauth2_scheme)],
     settings: Annotated[Settings, Depends(get_settings)],
+    redis_client: Annotated[Redis, Depends(get_redis_client)],
 ) -> TokenData:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -26,7 +28,14 @@ async def get_current_user_data(
     if payload is None:
         raise credentials_exception
 
-    # TODO: Проверить Acess Token в чёрном списке
+    jti = payload.get("jti")
+    if jti:
+        is_blacklisted = await redis_client.exists(f"blacklist:{jti}")
+        if is_blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
 
     try:
         return TokenData.model_validate(payload)
