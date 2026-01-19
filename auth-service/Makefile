@@ -11,3 +11,6 @@ test:
 
 run:
 	ENV=dev uvicorn app.main:app --log-level critical
+
+migrate:
+	ENV=dev alembic upgrade head
