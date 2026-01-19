@@ -7,6 +7,16 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 from app.models import ContactStatus
 
 
+class ErrorDetail(BaseModel):
+    message: str
+    code: str
+    trace_id: Optional[str] = None
+    details: Optional[str | list | dict] = None
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail
+
+
 class UserProfileCreate(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     display_name: Optional[str] = None

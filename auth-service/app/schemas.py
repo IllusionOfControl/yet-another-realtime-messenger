@@ -4,6 +4,17 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 
 
+class ErrorDetail(BaseModel):
+    message: str
+    code: str
+    trace_id: Optional[str] = None
+    details: Optional[str | list | dict] = None
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail
+
+
 class SuccessResponse(BaseModel):
     message: str
 
