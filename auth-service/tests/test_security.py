@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from cryptography.hazmat.primitives import rsa, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa 
+from cryptography.hazmat.primitives import serialization
 import jwt
 
 from app.security import (
@@ -44,7 +45,7 @@ def test_rs256_token_signing_and_decoding(test_rsa_keys: tuple[str, str]):
     assert "sub" in payload
 
 def test_rs256_rejection_with_wrong_key(test_rsa_keys: tuple[str, str]):
-    private_pem, public_pem = test_rsa_keys
+    private_pem, _ = test_rsa_keys
     other_priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     other_pub_pem = other_priv.public_key().public_bytes(
         encoding=serialization.Encoding.PEM,
@@ -53,7 +54,7 @@ def test_rs256_rejection_with_wrong_key(test_rsa_keys: tuple[str, str]):
     
     token = create_jwt_token(
         {"sub": "test"},
-        private_key=test_rsa_keys["private"],
+        private_key=private_pem,
         issued_at=datetime.now(timezone.utc),
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=1),
     )

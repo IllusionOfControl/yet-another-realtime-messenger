@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from functools import lru_cache
 from http import HTTPStatus
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 from pydantic import BaseModel
@@ -14,14 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class UserClientError(Exception):
-    def __init__(
-        self,
-        detail: Optional[str],
-        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR.value,
-    ):
-        super().__init__(detail)
-        self.detail = detail
+    def __init__(self, message: str, code: str = "BAD_REQUEST", status_code: int = 400, details: Any = None):
+        self.message = message
+        self.code = code
         self.status_code = status_code
+        self.details = details
 
 
 class UserProfile(BaseModel):

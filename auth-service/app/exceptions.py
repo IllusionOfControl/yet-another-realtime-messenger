@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -15,7 +16,7 @@ class AppException(Exception):
         self.status_code = status_code
         self.details = details
 
-async def app_exception_handler(request: Request, exc: AppException):
+async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -28,7 +29,7 @@ async def app_exception_handler(request: Request, exc: AppException):
         }
     )
 
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -40,9 +41,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         }
     )
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={
             "error": {
                 "message": "Validation failed",
@@ -53,7 +54,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
-async def unhandled_exception_handler(request: Request, exc: Exception):
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

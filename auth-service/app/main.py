@@ -49,6 +49,3 @@ def get_app():
     app.include_router(router)
 
     return app
-
-
-app = get_app()

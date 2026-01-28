@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: db_auth
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:8-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  auth-service:
+    build: ./
+    command: pytest
+    env_file:
+      - ./config/test.env
+    depends_on:
+      - redis
+      - db

@@ -44,7 +44,6 @@ class TraceContextMiddleware(BaseHTTPMiddleware):
 
             logger.error(
                 f"Request processing failed for {request.method} {request.url} with error: {e}",
-                exc_info=True,
             )
             raise
         else:

@@ -9,10 +9,10 @@ import pytest
 from fastapi import FastAPI
 from redis.asyncio import Redis, from_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from cryptography.hazmat.primitives import rsa
+from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
-from app.database import Base, get_db
+from app.database import Base, get_db, get_redis_client
 from app.main import get_app
 from app.services.user_client import UserClient, UserProfile, get_user_client
 from app.settings import get_settings
@@ -45,8 +45,8 @@ def update_environment(test_rsa_keys: tuple[str, str]):
     yield
 
 
-@pytest.fixture
-async def app() -> AsyncIterator[FastAPI]:
+@pytest.fixture()
+async def app(update_environment) -> AsyncIterator[FastAPI]:
     yield get_app()
 
 
@@ -66,7 +66,7 @@ async def db_session(app) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -74,7 +74,7 @@ async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:
 
 
 @pytest.fixture
-def mock_user_service_client():
+def mock_user_service_client() -> UserClient:
     mock_client = Mock(spec=UserClient)
 
     mock_client.create_user_profile = AsyncMock(
@@ -101,32 +101,35 @@ def mock_user_service_client():
             roles=["user"],
         ),
     )
-    yield mock_client
+    return mock_client
+
+
+
+@pytest.fixture
+async def mock_redis_client() -> AsyncGenerator[Redis, None]:
+    settings = get_settings()
+    redis = from_url(settings.redis_url, decode_responses=True)
+    await redis.flushdb()
+
+    yield redis
+
+    await redis.flushdb()
+    await redis.aclose()
 
 
 @pytest.fixture(autouse=True)
-def override_fastapi_depends(app, db_session, mock_user_service_client):
+def override_fastapi_depends(
+    app: FastAPI, 
+    db_session: AsyncSession, 
+    mock_user_service_client: UserClient, 
+    mock_redis_client: Redis
+):
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_user_client] = lambda: mock_user_service_client
+    app.dependency_overrides[get_redis_client] = lambda: mock_redis_client
 
     yield
 
     app.dependency_overrides.clear()
 
 
-# ====
-@pytest.fixture
-async def mock_redis_client(test_settings) -> AsyncGenerator[Redis, None]:
-    settings = get_settings()
-    redis = from_url(settings.redis_url, decode_responses=True)
-    await redis.flushdb()  # Clean the test DB before each test that uses it
-
-    # Override the app's get_redis_client dependency
-    with patch("app.dependencies.get_redis_client", return_value=redis):
-        with patch(
-            "app.security.get_redis_client", return_value=redis
-        ):  # Also patch in security module
-            yield redis
-
-    await redis.flushdb()  # Clean up after tests
-    await redis.close()

@@ -1,12 +1,13 @@
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.database import get_redis_client
 from app.schemas import TokenData
 from app.security import decode_token
 from app.settings import Settings, get_settings
+from app.exceptions import AppException
 from redis import Redis
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
@@ -17,14 +18,14 @@ async def get_current_user_data(
     settings: Annotated[Settings, Depends(get_settings)],
     redis_client: Annotated[Redis, Depends(get_redis_client)],
 ) -> TokenData:
-    credentials_exception = HTTPException(
+    credentials_exception = AppException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        message="Could not validate credentials",
     )
     if token is None:
         raise credentials_exception
 
-    payload = decode_token(token, settings.secret_key)
+    payload = decode_token(token, settings.public_key)
     if payload is None:
         raise credentials_exception
 
@@ -32,9 +33,9 @@ async def get_current_user_data(
     if jti:
         is_blacklisted = await redis_client.exists(f"blacklist:{jti}")
         if is_blacklisted:
-            raise HTTPException(
+            raise AppException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked",
+                message="Token has been revoked",
             )
 
     try:

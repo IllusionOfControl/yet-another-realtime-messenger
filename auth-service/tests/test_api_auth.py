@@ -50,7 +50,6 @@ async def test_full_auth_flow(client, db_session):
     ref_resp = await client.post(
         "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
     )
-    print(ref_resp.json())
     assert ref_resp.status_code == 200
     assert ref_resp.json()["access_token"] != access_token
 
@@ -83,9 +82,9 @@ async def test_register_duplicate_email(client, db_session):
         "email": "dup@example.com",
         "password": "password123",
     }
-    # Первый раз
+    
     await client.post("/api/v1/auth/register", json=user_data)
-    # Второй раз с тем же email
+    
     resp = await client.post(
         "/api/v1/auth/register",
         json={
@@ -95,11 +94,12 @@ async def test_register_duplicate_email(client, db_session):
         },
     )
     assert resp.status_code == 409
-    assert "Email already registered" in resp.json()["detail"]
+    print(resp.json())
+    assert "Email already registered" in resp.json()["error"]["message"]
 
 
 @pytest.mark.asyncio
 async def test_verify_email_invalid_code(client):
     resp = await client.post("/api/v1/auth/verify-email", params={"code": "wrong-code"})
     assert resp.status_code == 400
-    assert "Invalid or expired" in resp.json()["detail"]
+    assert "Invalid or expired" in resp.json()["error"]["message"]

@@ -1,9 +1,11 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock
+import httpx
+from fastapi import FastAPI
+from app.database import get_db
 
 @pytest.mark.asyncio
-async def test_standardized_404_error(client):
-    """Test that a non-existent route returns the standard error format."""
+async def test_standardized_404_error(client: httpx.AsyncClient):
     response = await client.get("/api/v1/auth/non-existent-endpoint")
     assert response.status_code == 404
     
@@ -15,9 +17,8 @@ async def test_standardized_404_error(client):
     assert data["error"]["trace_id"] is not None
 
 @pytest.mark.asyncio
-async def test_standardized_validation_error(client):
+async def test_standardized_validation_error(client: httpx.AsyncClient):
     """Test that Pydantic validation errors return the standard error format."""
-    # Sending empty body to registration which requires fields
     response = await client.post("/api/v1/auth/register", json={})
     assert response.status_code == 422
     
@@ -28,34 +29,33 @@ async def test_standardized_validation_error(client):
     assert data["error"]["trace_id"] is not None
 
 @pytest.mark.asyncio
-async def test_standardized_500_error(client):
-    """Test that unhandled exceptions are masked and standardized."""
-    # Mocking a CRUD function to raise a raw Exception
-    with patch("app.api.get_local_auth_by_identifier", side_effect=Exception("Database crash!")):
-        response = await client.post(
-            "/api/v1/auth/login", 
-            json={"login": "test", "password": "password"}
-        )
+async def test_standardized_500_error(app: FastAPI, client: httpx.AsyncClient):
+    async def mock_side_effect(*args, **kwargs):
+        raise Exception("Database Crash!")
+    
+    mock_get_db_crash = Mock()
+    mock_get_db_crash.execute = AsyncMock(side_effect=mock_side_effect)
+    
+    app.dependency_overrides[get_db] = lambda: mock_get_db_crash
+    response = await client.post(
+        "/api/v1/auth/login", 
+        json={"login": "test", "password": "password"}
+    )
         
     assert response.status_code == 500
     data = response.json()
     assert data["error"]["code"] == "INTERNAL_SERVER_ERROR"
     assert data["error"]["message"] == "An unexpected error occurred"
-    # Ensure the raw "Database crash!" message is NOT leaked to the client
     assert "Database crash!" not in data["error"]["message"]
     assert data["error"]["trace_id"] is not None
 
 @pytest.mark.asyncio
-async def test_app_exception_handling(client):
-    """Test that domain-specific AppExceptions are handled correctly."""
-    # We can trigger a 409 Conflict which uses HTTPException (mapped to HTTP_ERROR)
-    # or mock an endpoint to raise AppException. 
-    # For this test, we verify the existing 401 logic in login.
+async def test_app_exception_handling(client: httpx.AsyncClient):
     response = await client.post(
         "/api/v1/auth/login", 
         json={"login": "wrong", "password": "wrong"}
     )
     assert response.status_code == 401
     data = response.json()
-    assert data["error"]["code"] == "HTTP_ERROR"
+    assert data["error"]["code"] == "BAD_REQUEST"
     assert data["error"]["message"] == "Incorrect login or password"

@@ -30,8 +30,11 @@ async def get_db():
             await db.close()
 
 
-@lru_cache
 async def get_redis_client():
-    settings = get_settings()
-    redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
-    return redis_client
+    @lru_cache
+    def _get_redis_client() -> redis.Redis:
+        settings = get_settings()
+        redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+        return redis_client
+
+    return _get_redis_client()

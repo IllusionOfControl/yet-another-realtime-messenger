@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import (
@@ -43,8 +43,9 @@ from app.utils import generate_random_sequence
 from redis import Redis
 from app.dependencies import oauth2_scheme
 from app.database import get_redis_client
+from app.exceptions import AppException
 
-router = APIRouter(prefix="/api/v1/")
+router = APIRouter(prefix="/api/v1")
 
 
 @router.post("/health")
@@ -63,13 +64,13 @@ async def register_user(
     user_client: Annotated[UserClient, Depends(get_user_client)],
 ):
     if await is_email_taken(db, user_create.email):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+        raise AppException(
+            status_code=status.HTTP_409_CONFLICT, message="Email already registered"
         )
 
     if await is_username_taken(db, user_create.username):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Username already registered"
+        raise AppException(
+            status_code=status.HTTP_409_CONFLICT, message="Username already registered"
         )
 
     try:
@@ -80,11 +81,11 @@ async def register_user(
         )
     except UserClientError as e:
         if e.status_code == status.HTTP_409_CONFLICT:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.detail)
+            raise AppException(status_code=status.HTTP_409_CONFLICT, message=e.detail)
         else:
-            raise HTTPException(
+            raise AppException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create user profile in User Service",
+                message="Failed to create user profile in User Service",
             )
 
     hashed_password = get_password_hash(user_create.password)
@@ -109,23 +110,22 @@ async def login_for_access_token(
     user_login: UserLoginRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
-    user_client: Annotated[UserClient, Depends(get_user_client)],
 ):
     local_auth = await get_local_auth_by_identifier(db, user_login.login)
 
     if not local_auth or not verify_password(
         user_login.password, local_auth.password_hash
     ):
-        raise HTTPException(
+        raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect login or password",
+            message="Incorrect login or password",
         )
 
     user = local_auth.user
 
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
+        raise AppException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Inactive user"
         )
 
     scopes_set = set()
@@ -134,8 +134,8 @@ async def login_for_access_token(
     scopes = list(scopes_set)
 
     if local_auth.email_verified_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Verify email"
+        raise AppException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Verify email"
         )
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
@@ -164,13 +164,13 @@ async def login_for_access_token(
     }
     access_token = create_jwt_token(
         data={**token_data, "jti": str(access_jti)},
-        secret_key=settings.private_key,
+        private_key=settings.private_key,
         issued_at=issued_at,
         expires_at=access_token_expires_at,
     )
     refresh_token = create_jwt_token(
         data={**token_data, "jti": str(refresh_jti)},
-        secret_key=settings.private_key,
+        private_key=settings.private_key,
         issued_at=issued_at,
         expires_at=refresh_token_expires_at,
     )
@@ -184,8 +184,8 @@ async def verify_email(
 ):
     auth_entry = await get_user_by_verification_code(db, code)
     if not auth_entry:
-        raise HTTPException(
-            status_code=400, detail="Invalid or expired verification code"
+        raise AppException(
+            status_code=400, message="Invalid or expired verification code"
         )
 
     await mark_email_as_verified(db, auth_entry.user_id)
@@ -198,23 +198,23 @@ async def refresh_access_token(
     db: Annotated[AsyncSession, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
 ):
-    payload = decode_token(request.refresh_token, settings.secret_key)
+    payload = decode_token(request.refresh_token, settings.public_key)
     if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+        raise AppException(
+            status_code=status.HTTP_401_UNAUTHORIZED, message="Invalid refresh token"
         )
 
     session_id = payload.get("sid")
     if not session_id:
-        raise HTTPException(
+        raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token payload",
+            message="Invalid refresh token payload",
         )
 
     user_session = await get_active_session(db, uuid.UUID(session_id))
     if not user_session:
         # TODO: Может быть попытка взлома, необходимо уведомить пользователя
-        raise HTTPException(status_code=401, detail="Session expired or reused")
+        raise AppException(status_code=401, message="Session expired or reused")
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     refresh_token_expires = timedelta(days=settings.refresh_token_expire_days)
@@ -237,13 +237,13 @@ async def refresh_access_token(
     }
     access_token = create_jwt_token(
         data={**token_data, "jti": str(new_access_jti)},
-        secret_key=settings.private_key,
+        private_key=settings.private_key,
         issued_at=issued_at,
         expires_at=access_token_expires_at,
     )
     refresh_token = create_jwt_token(
         data={**token_data, "jti": str(new_refresh_jti)},
-        secret_key=settings.private_key,
+        private_key=settings.private_key,
         issued_at=issued_at,
         expires_at=refresh_token_expires_at,
     )
@@ -269,7 +269,7 @@ async def logout(
     redis_client: Annotated[Redis, Depends(get_redis_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ):
-    payload = decode_token(token, settings.secret_key)
+    payload = decode_token(token, settings.public_key)
     if payload and "exp" in payload:
         jti = payload["jti"]
         exp = payload["exp"]
