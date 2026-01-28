@@ -32,8 +32,7 @@ from app.schemas import (
     UserLoginRequest,
 )
 from app.security import (
-    create_access_token,
-    create_refresh_token,
+    create_jwt_token,
     decode_token,
     get_password_hash,
     verify_password,
@@ -163,15 +162,15 @@ async def login_for_access_token(
         "scopes": scopes,
         "sid": str(user_session.id),
     }
-    access_token = create_access_token(
+    access_token = create_jwt_token(
         data={**token_data, "jti": str(access_jti)},
-        secret_key=settings.secret_key,
+        secret_key=settings.private_key,
         issued_at=issued_at,
         expires_at=access_token_expires_at,
     )
-    refresh_token = create_refresh_token(
+    refresh_token = create_jwt_token(
         data={**token_data, "jti": str(refresh_jti)},
-        secret_key=settings.secret_key,
+        secret_key=settings.private_key,
         issued_at=issued_at,
         expires_at=refresh_token_expires_at,
     )
@@ -236,15 +235,15 @@ async def refresh_access_token(
         "scopes": payload.get("scopes"),
         "sid": str(user_session.id),
     }
-    access_token = create_access_token(
+    access_token = create_jwt_token(
         data={**token_data, "jti": str(new_access_jti)},
-        secret_key=settings.secret_key,
+        secret_key=settings.private_key,
         issued_at=issued_at,
         expires_at=access_token_expires_at,
     )
-    refresh_token = create_refresh_token(
+    refresh_token = create_jwt_token(
         data={**token_data, "jti": str(new_refresh_jti)},
-        secret_key=settings.secret_key,
+        secret_key=settings.private_key,
         issued_at=issued_at,
         expires_at=refresh_token_expires_at,
     )

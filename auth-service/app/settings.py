@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     database_url: str
     user_service_url: str
 
-    secret_key: str
+    private_key: str
+    public_key: str
+    
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 10
 

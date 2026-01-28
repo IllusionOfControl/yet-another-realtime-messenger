@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import datetime
 from typing import AsyncGenerator, AsyncIterator
@@ -8,11 +9,40 @@ import pytest
 from fastapi import FastAPI
 from redis.asyncio import Redis, from_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from cryptography.hazmat.primitives import rsa
+from cryptography.hazmat.primitives import serialization
 
 from app.database import Base, get_db
 from app.main import get_app
 from app.services.user_client import UserClient, UserProfile, get_user_client
 from app.settings import get_settings
+
+
+@pytest.fixture(scope="session")
+def test_rsa_keys() -> tuple[str, str]:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ).decode("utf-8")
+    
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode("utf-8")
+    
+    return (private_pem, public_pem)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def update_environment(test_rsa_keys: tuple[str, str]):
+    private_pem, public_pem = test_rsa_keys
+    os.environ["PRIVATE_KEY"] = private_pem
+    os.environ["PUBLIC_KEY"] = public_pem
+    yield
 
 
 @pytest.fixture
