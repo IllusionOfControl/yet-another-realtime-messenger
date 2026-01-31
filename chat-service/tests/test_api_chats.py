@@ -65,7 +65,7 @@ async def test_leave_and_delete_chat(client, current_user_id):
     
     leave_resp = await client.post(f"/api/v1/chats/{chat_id}/leave")
     assert leave_resp.status_code == 400
-    assert "Owner cannot leave" in leave_resp.json()["detail"]
+    assert "Owner cannot leave" in leave_resp.json()["error"]["message"]
     
     del_resp = await client.delete(f"/api/v1/chats/{chat_id}")
     assert del_resp.status_code == 204

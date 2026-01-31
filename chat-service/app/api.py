@@ -195,7 +195,7 @@ async def delete_chat(
 ):
     member = await crud.get_member(db, chat_id, current_user.sub)
     if not member or member.role != MemberRole.OWNER:
-        raise HTTPException(status_code=403)
+        raise HTTPException(status_code=403, detail="Owner cannot leave")
     await crud.delete_chat(db, chat_id)
     await kafka.publish_event("chat_deleted", {"chat_id": str(chat_id)})
     return 
