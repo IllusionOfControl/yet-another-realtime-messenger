@@ -6,18 +6,17 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import router
-from app.logger import configure_logging
-from app.middlewares import TraceContextMiddleware
-from app.settings import get_settings
-from app.services.kafka_producer import producer_service
 from app.exceptions import (
     AppException,
     app_exception_handler,
     http_exception_handler,
+    unhandled_exception_handler,
     validation_exception_handler,
-    unhandled_exception_handler
 )
-
+from app.logger import configure_logging
+from app.middlewares import TraceContextMiddleware
+from app.services.kafka_producer import producer_service
+from app.settings import get_settings
 
 logger = logging.getLogger(__name__)
 

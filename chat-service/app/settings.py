@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     log_level: str = Field("info")
     log_format: str = Field("text")
 
+
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()

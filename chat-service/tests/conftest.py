@@ -1,41 +1,42 @@
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator, AsyncIterator
 from unittest.mock import AsyncMock, Mock
 
 import httpx
+import jwt
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.database import Base, get_db, get_redis_client
-from app.main import get_app
 from app.dependencies import get_current_user_data
+from app.main import get_app
 from app.schemas import TokenData
 from app.services.kafka_producer import KafkaProducerService, get_kafka_producer
 from app.settings import get_settings
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
-from datetime import datetime, timezone, timedelta
-import jwt
+
 
 @pytest.fixture(scope="session")
 def test_rsa_keys() -> tuple[str, str]:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    
+
     private_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     ).decode("utf-8")
-    
+
     public_pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
     ).decode("utf-8")
-    
+
     return (private_pem, public_pem)
 
 
@@ -51,24 +52,27 @@ def update_environment(test_rsa_keys: tuple[str, str]):
 def jwt_token_factory(test_rsa_keys: tuple[str, str]):
     private_key, public_key = test_rsa_keys
     settings = get_settings()
-    
+
     def _jwt_token_factory(private_key: str = private_key, **kwargs):
         payload = {
             "sub": str(kwargs.get("sub", uuid.uuid4())),
             "scopes": kwargs.get("scopes", []),
             "sid": str(kwargs.get("sid", uuid.uuid4())),
             "jti": str(kwargs.get("jti", uuid.uuid4())),
-            "exp": kwargs.get("exp", datetime.now(timezone.utc) + timedelta(minutes=15)), 
+            "exp": kwargs.get(
+                "exp", datetime.now(timezone.utc) + timedelta(minutes=15)
+            ),
             "iat": kwargs.get("iat", datetime.now(timezone.utc)),
         }
         return jwt.encode(payload, private_key, algorithm="RS256")
-    
+
     return _jwt_token_factory
 
 
 @pytest.fixture()
 async def app() -> AsyncIterator[FastAPI]:
     yield get_app()
+
 
 @pytest.fixture()
 async def db_session(app: FastAPI) -> AsyncGenerator[AsyncSession, None]:
@@ -84,12 +88,14 @@ async def db_session(app: FastAPI) -> AsyncGenerator[AsyncSession, None]:
         session = AsyncSession(bind=connection, expire_on_commit=False)
         yield session
 
+
 @pytest.fixture
 async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
+
 
 @pytest.fixture
 def mock_kafka_producer() -> KafkaProducerService:
@@ -99,15 +105,18 @@ def mock_kafka_producer() -> KafkaProducerService:
     mock_service.stop = AsyncMock()
     return mock_service
 
+
 @pytest.fixture
 def mock_redis_client() -> Redis:
     mock_redis = Mock(spec=Redis)
     mock_redis.exists = AsyncMock(return_value=False)
     return mock_redis
 
+
 @pytest.fixture
 def current_user_id() -> uuid.UUID:
     return uuid.uuid4()
+
 
 @pytest.fixture(autouse=True)
 def override_dependencies(
@@ -124,7 +133,7 @@ def override_dependencies(
         sub=current_user_id,
         scopes=["chat.message.send", "chat.group.create", "chat.channel.create"],
         sid=uuid.uuid4(),
-        jti=uuid.uuid4()
+        jti=uuid.uuid4(),
     )
 
     yield

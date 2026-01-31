@@ -1,21 +1,19 @@
 import uuid
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 
-from app.security import decode_token
-from app.settings import Settings, get_settings
-from app.schemas import TokenData
-
-from fastapi import HTTPException, status, Depends
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
+
 from app.database import get_redis_client
+from app.schemas import TokenData
+from app.security import decode_token
+from app.settings import Settings, get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
-def get_token(
-    token: Annotated[Optional[str], Depends(oauth2_scheme)]
-):
+def get_token(token: Annotated[Optional[str], Depends(oauth2_scheme)]):
     return token
 
 
@@ -34,7 +32,7 @@ async def get_current_user_data(
     payload = decode_token(token, settings.secret_key)
     if payload is None:
         raise credentials_exception
-    
+
     jti = payload.get("jti")
     if jti:
         is_blacklisted = await redis_client.exists(f"blacklist:{jti}")
@@ -48,7 +46,9 @@ async def get_current_user_data(
         return TokenData.model_validate(payload)
     except Exception:
         raise credentials_exception
-    
 
-def get_current_user_id(current_user_data: Annotated[TokenData, Depends(get_current_user_data)]) -> Optional[uuid.UUID]:
+
+def get_current_user_id(
+    current_user_data: Annotated[TokenData, Depends(get_current_user_data)],
+) -> Optional[uuid.UUID]:
     return current_user_data.sub
