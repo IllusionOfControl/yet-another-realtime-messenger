@@ -66,7 +66,7 @@ async def search_public_channels(db: AsyncSession, query: str) -> List[Chat]:
     stmt = (
         select(Chat)
         .where(Chat.type == ChatType.CHANNEL)
-        .where(Chat.settings['is_public'].astext == 'true')
+        .where(Chat.settings['is_public'].as_boolean() == True)
         .where(Chat.name.ilike(f"%{query}%"))
     )
     result = await db.execute(stmt)

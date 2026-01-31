@@ -35,6 +35,3 @@ def get_app():
     app.add_middleware(TraceContextMiddleware)
 
     return app
-
-
-app = get_app()

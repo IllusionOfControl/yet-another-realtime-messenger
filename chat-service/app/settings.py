@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_topic_chats: str = "chat_events"
 
-    secret_key: str
-
     log_level: str = Field("info")
     log_format: str = Field("text")
 

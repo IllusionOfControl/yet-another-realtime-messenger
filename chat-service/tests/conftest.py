@@ -15,18 +15,63 @@ from app.dependencies import get_current_user_data
 from app.schemas import TokenData
 from app.services.kafka_producer import KafkaProducerService, get_kafka_producer
 from app.settings import get_settings
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from datetime import datetime, timezone, timedelta
+import jwt
+
+@pytest.fixture(scope="session")
+def test_rsa_keys() -> tuple[str, str]:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ).decode("utf-8")
+    
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode("utf-8")
+    
+    return (private_pem, public_pem)
+
 
 @pytest.fixture(scope="session", autouse=True)
-def update_environment():
-    os.environ["ENV"] = "test"
+def update_environment(test_rsa_keys: tuple[str, str]):
+    private_pem, public_pem = test_rsa_keys
+    os.environ["PRIVATE_KEY"] = private_pem
+    os.environ["PUBLIC_KEY"] = public_pem
     yield
+
+
+@pytest.fixture(scope="function")
+def jwt_token_factory(test_rsa_keys: tuple[str, str]):
+    private_key, public_key = test_rsa_keys
+    settings = get_settings()
+    
+    def _jwt_token_factory(private_key: str = private_key, **kwargs):
+        payload = {
+            "sub": str(kwargs.get("sub", uuid.uuid4())),
+            "scopes": kwargs.get("scopes", []),
+            "sid": str(kwargs.get("sid", uuid.uuid4())),
+            "jti": str(kwargs.get("jti", uuid.uuid4())),
+            "exp": kwargs.get("exp", datetime.now(timezone.utc) + timedelta(minutes=15)), 
+            "iat": kwargs.get("iat", datetime.now(timezone.utc)),
+        }
+        return jwt.encode(payload, private_key, algorithm="RS256")
+    
+    return _jwt_token_factory
+
 
 @pytest.fixture()
 async def app() -> AsyncIterator[FastAPI]:
     yield get_app()
 
 @pytest.fixture()
-async def db_session(app) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(app: FastAPI) -> AsyncGenerator[AsyncSession, None]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=False)
 

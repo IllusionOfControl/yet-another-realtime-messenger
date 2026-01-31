@@ -9,12 +9,10 @@ async def test_get_or_create_dm(db_session: AsyncSession):
     user_a = uuid.uuid4()
     user_b = uuid.uuid4()
     
-    # Create new DM
     chat = await crud.get_or_create_dm(db_session, user_a, user_b)
     assert chat.type == ChatType.DM
     assert len(chat.members) == 2
     
-    # Get existing DM
     chat2 = await crud.get_or_create_dm(db_session, user_a, user_b)
     assert chat.id == chat2.id
 
@@ -24,7 +22,6 @@ async def test_create_group_and_get_user_chats(db_session: AsyncSession):
     chat_name = "Team Alpha"
     settings = {"description": "Top secret"}
     
-    # Create group
     chat = await crud.create_group_or_channel(
         db_session, creator_id, ChatType.GROUP, chat_name, settings
     )
@@ -32,7 +29,6 @@ async def test_create_group_and_get_user_chats(db_session: AsyncSession):
     assert chat.members[0].user_id == creator_id
     assert chat.members[0].role == MemberRole.OWNER
     
-    # Verify it appears in user's chat list
     user_chats = await crud.get_user_chats(db_session, creator_id)
     assert len(user_chats) == 1
     assert user_chats[0].id == chat.id
@@ -41,11 +37,9 @@ async def test_create_group_and_get_user_chats(db_session: AsyncSession):
 async def test_search_public_channels(db_session: AsyncSession):
     creator_id = uuid.uuid4()
     
-    # Create public channel
     await crud.create_group_or_channel(
         db_session, creator_id, ChatType.CHANNEL, "Public News", {"is_public": "true"}
     )
-    # Create private channel
     await crud.create_group_or_channel(
         db_session, creator_id, ChatType.CHANNEL, "Private Secrets", {"is_public": "false"}
     )
@@ -61,12 +55,10 @@ async def test_member_and_delete_operations(db_session: AsyncSession):
         db_session, user_id, ChatType.GROUP, "Delete Me", {}
     )
     
-    # Get member
     member = await crud.get_member(db_session, chat.id, user_id)
     assert member is not None
     assert member.role == MemberRole.OWNER
     
-    # Delete chat
     await crud.delete_chat(db_session, chat.id)
     deleted_chat = await crud.get_chat_with_members(db_session, chat.id)
     assert deleted_chat is None

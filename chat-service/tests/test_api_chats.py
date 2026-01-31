@@ -6,32 +6,27 @@ from app.models import ChatType, MemberRole
 async def test_create_dm_flow(client, current_user_id, mock_kafka_producer):
     target_user_id = uuid.uuid4()
     
-    # Create DM
     resp = await client.post(f"/api/v1/chats/dm/{target_user_id}")
     assert resp.status_code == 200
     data = resp.json()
     assert data["type"] == "DM"
     assert len(data["members"]) == 2
     
-    # Verify Kafka event was published
     mock_kafka_producer.publish_event.assert_called_with(
         "chat_created", {"chat_id": data["id"], "type": "DM"}
     )
     
-    # Try creating the same DM again (should return existing)
     resp2 = await client.post(f"/api/v1/chats/dm/{target_user_id}")
     assert resp2.status_code == 200
     assert resp2.json()["id"] == data["id"]
 
 @pytest.mark.asyncio
 async def test_group_chat_management(client, current_user_id):
-    # 1. Create Group
     group_data = {"name": "Test Group", "description": "A test group chat"}
     resp = await client.post("/api/v1/chats/group", json=group_data)
     assert resp.status_code == 200
     chat_id = resp.json()["id"]
     
-    # 2. Add Participant
     new_user_id = str(uuid.uuid4())
     add_resp = await client.post(
         f"/api/v1/chats/{chat_id}/participants", 
@@ -39,14 +34,12 @@ async def test_group_chat_management(client, current_user_id):
     )
     assert add_resp.status_code == 201
     
-    # 3. Get Details
     details_resp = await client.get(f"/api/v1/chats/{chat_id}")
     assert details_resp.status_code == 200
     members = details_resp.json()["members"]
     assert any(m["user_id"] == str(current_user_id) and m["role"] == "OWNER" for m in members)
     assert any(m["user_id"] == new_user_id and m["role"] == "MEMBER" for m in members)
     
-    # 4. Update Chat
     update_resp = await client.put(
         f"/api/v1/chats/{chat_id}",
         json={"name": "Updated Name", "description": "New description"}
@@ -56,11 +49,9 @@ async def test_group_chat_management(client, current_user_id):
 
 @pytest.mark.asyncio
 async def test_channel_search(client):
-    # Create a public channel
     channel_data = {"name": "Public News", "description": "Global news", "is_public": True}
     await client.post("/api/v1/chats/channel", json=channel_data)
     
-    # Search for it
     search_resp = await client.get("/api/v1/channels/public/search", params={"query": "News"})
     assert search_resp.status_code == 200
     results = search_resp.json()
@@ -69,19 +60,15 @@ async def test_channel_search(client):
 
 @pytest.mark.asyncio
 async def test_leave_and_delete_chat(client, current_user_id):
-    # Create group
     resp = await client.post("/api/v1/chats/group", json={"name": "Temp Group"})
     chat_id = resp.json()["id"]
     
-    # Owner cannot leave
     leave_resp = await client.post(f"/api/v1/chats/{chat_id}/leave")
     assert leave_resp.status_code == 400
     assert "Owner cannot leave" in leave_resp.json()["detail"]
     
-    # Delete chat
     del_resp = await client.delete(f"/api/v1/chats/{chat_id}")
     assert del_resp.status_code == 204
     
-    # Verify it's gone
     get_resp = await client.get(f"/api/v1/chats/{chat_id}")
     assert get_resp.status_code == 404

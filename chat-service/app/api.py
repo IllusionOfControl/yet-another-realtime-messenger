@@ -175,7 +175,7 @@ async def leave_chat(
 
 @router.get("/channels/public/search", response_model=List[ChatShortResponse])
 async def search_channels(
-    query: str = Query(..., min_length=3),
+    query: Annotated[str, Query(..., min_length=3)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     return await crud.search_public_channels(db, query)
@@ -186,7 +186,7 @@ async def internal_check(chat_id: uuid.UUID, user_id: uuid.UUID, db: Annotated[A
     if not member: return {"is_member": False}
     return {"is_member": True, "role": member.role}
 
-@router.delete("/chats/{chat_id}")
+@router.delete("/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chat(
     chat_id: uuid.UUID,
     current_user: Annotated[TokenData, Depends(get_current_user_data)],
@@ -198,4 +198,4 @@ async def delete_chat(
         raise HTTPException(status_code=403)
     await crud.delete_chat(db, chat_id)
     await kafka.publish_event("chat_deleted", {"chat_id": str(chat_id)})
-    return status.HTTP_204_NO_CONTENT
+    return 
