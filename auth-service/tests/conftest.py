@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime
 from typing import AsyncGenerator, AsyncIterator
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
