@@ -51,7 +51,7 @@ async def app(update_environment) -> AsyncIterator[FastAPI]:
 
 
 @pytest.fixture()
-async def db_session(app) -> AsyncGenerator[AsyncSession, None]:
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=False)
 
